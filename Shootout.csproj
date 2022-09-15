@@ -1,0 +1,52 @@
+<!--
+  Copyright (C) 2022 Ivan Kozlov.
+
+  This file is part of Shootout.
+
+  Shootout is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 3, or (at your option)
+  any later version.
+
+  Shootout is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with Shootout; if not, see <https://www.gnu.org/licenses>.
+
+  Additional permission under GNU GPL version 3 section 7
+
+  If you modify Shootout, or any covered work, by linking or combining
+  it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+  of this Program grant you additional permission to convey the resulting
+  work.  -->
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
+  <PropertyGroup>
+    <OutputType>Module</OutputType>
+    <TargetExt>.netmodule</TargetExt>
+    <DefineConstants>standalone</DefineConstants>
+    <MergedScript>bin\Shootout.txt</MergedScript>
+    <Header>src\ScriptInterface.cs</Header>
+    <Footer>src\Footer.cs</Footer>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Header)"/>
+    <Compile Include="src\**\*.cs" Exclude="$(Header);$(Footer)"/>
+    <Compile Include="$(Footer)"/>
+    <Merge Include="@(Compile)"/>
+    <Reference Include="SFD.GameScriptInterface.dll"/>
+  </ItemGroup>
+  <Target Name="Merge" Inputs="@(Merge)" Outputs="$(MergedScript)" AfterTargets="Build">
+    <ReadLinesFromFile File="%(Merge.Identity)">
+      <Output TaskParameter="Lines" ItemName="MergeItems"/>
+    </ReadLinesFromFile>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName ($(MergedScript)))"/>
+    <WriteLinesToFile File="$(MergedScript)" Lines="@(MergeItems)" Overwrite="true"/>
+  </Target>
+  <Target Name="CleanMerge" BeforeTargets="Clean">
+    <Delete Files="$(MergedScript)"/>
+  </Target>
+</Project>

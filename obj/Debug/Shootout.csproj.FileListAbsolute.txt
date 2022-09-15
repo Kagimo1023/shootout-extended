@@ -1,0 +1,8 @@
+/home/runner/MealyStarkEngineering/bin/Debug/Shootout.netmodule
+/home/runner/MealyStarkEngineering/bin/Debug/Shootout.pdb
+/home/runner/MealyStarkEngineering/bin/Debug/SFD.GameScriptInterface.dll
+/home/runner/MealyStarkEngineering/obj/Debug/Shootout.csproj.AssemblyReference.cache
+/home/runner/MealyStarkEngineering/obj/Debug/Shootout.csproj.CoreCompileInputs.cache
+/home/runner/MealyStarkEngineering/obj/Debug/Shootout.csproj.CopyComplete
+/home/runner/MealyStarkEngineering/obj/Debug/Shootout.netmodule
+/home/runner/MealyStarkEngineering/obj/Debug/Shootout.pdb
