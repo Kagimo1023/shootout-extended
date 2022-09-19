@@ -1,6 +1,6 @@
 namespace Shootout
 {
-    namespace Mode.Characters.Data
+    namespace Modes.Characters.Data
     {
         public static class Descriptions
         {

@@ -16,7 +16,6 @@ namespace Shootout
         where T : IObject
     {
         protected Dictionary<int, List<Delegate>> _routes = new Dictionary<int, List<Delegate>> ();
-        //protected Dictionary<int, List<float>> _routes_up = new Dictionary<int, List<float>> ();
 
         public void AddRoute (T match, MulticastDelegate target)
         {

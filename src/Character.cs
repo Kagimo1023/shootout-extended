@@ -90,8 +90,7 @@ namespace Shootout
                           WeaponItem[] Weapons,
                           Effect[] Skills,
                           int CorpseHealth = 100,
-                          bool DeadOnSpawn = false)
-        {
+                          bool DeadOnSpawn = false) {
             this.Profile = new IProfile();
             this.Modifiers = new PlayerModifiers();
             SetOnStartSpawn(OnStart);
@@ -107,35 +106,7 @@ namespace Shootout
             SetCorpseHealth(CorpseHealth);
         }
 
-        //Base character constructor
-        public Character()
-        {
-            CharacterDebug = new SE_Debug("Character Debug log (" + _name + ")");
-            this.Profile = new IProfile();
-            this.Modifiers = new PlayerModifiers();
-        }
-
-        public void SetUniqueID(int id)
-        {
-            _uniqueID = id;
-        }
-
-        public int GetUniqueID()
-        {
-            return _uniqueID;
-        }
-
-        //Using for creating player base on Character class
-        public IPlayer CreateCharacter(Vector2 position)
-        {
-            SetPlayer(GameScriptInterface.Game.CreatePlayer(position));
-            SetUniqueID(GetPlayer().UniqueID);
-            OnCreateCharacter();
-            return this.Player;
-        }
-
-        public void OnCreateCharacter()
-        {
+        public void OnCreateCharacter() {
             UpdateModifiers();
             UpdateProfile();
             HandleCameraFocus();
@@ -153,118 +124,125 @@ namespace Shootout
             _wasSpawn = true;
         }
 
-        public IUser GetUser()
-        {
-            return this.User;
-        }
+        public void SetUser(IUser user) { User = user; }
+        public void SetProfile(IProfile profile) { Profile = profile; }
+        public void SetStatusBarVisible(bool hide_status) { _hide_status = hide_status; }
+        public void SetNametagVisible(bool hide_name) { _hide_name = hide_name; }
+        public void SetCorpseHealth(float corpse_health) { _corpse_health = corpse_health; }
+        public void SetCameraFocus(CameraFocusMode focus_mode) { _focus_mode = focus_mode; }
+        public void SetTimeOnSpawn(float time) { _time_on_spawn = time; }
+        public void SetWeapons(WeaponItem[] weapons) { Weapons = weapons; }
+        public void SetPlayer(IPlayer player) { Player = player; }
+        public void SetEffects(Effect[] effects) { Skills = effects; }
+        public void AddPassiveEffects(params Effect[] effects) { Skills = effects; }
+        public void SetOnStartShowDescription(bool show) { _showCharDescription = show; }
+        public void SetOnStartSpawn(bool spawn) { _on_start = spawn; }
+        public void CreateCharDialogue(Color color, float duration) { GameScriptInterface.Game.CreateDialogue(GetName(), color, GetPlayer(), "", duration, false); }
+        public void SetAIType(PredefinedAIType predefinedAIType) { _predefinedAIType = predefinedAIType; }
+        public void SetUniqueID(int id) { _uniqueID = id; }
+        public void SetName(string name) { _name = name; }
+        public void SetOldPlayer(IPlayer player) { OldPlayer = player; } 
+        public void SetDeadOnSpawn(bool dead_spawn) { _dead_spawn = dead_spawn; }
+        public void SetCharDescription(params string[] char_description) { this.Description = char_description; }
+        public void SetOnStartShowDialogue(bool show) { _showDialogueOnSpawn = show; }
+        public void SetPackModifiers(PlayerModifiers modifiers) { Modifiers = modifiers; }
 
-        public void SetAIType(PredefinedAIType predefinedAIType) => _predefinedAIType = predefinedAIType;
+        public void HandleStatusBarVisible() { Player.SetStatusBarsVisible(_hide_status); }
+        public void HandleNametagVisible() { Player.SetNametagVisible(_hide_name); }
+        public void HandleCameraFocus() { Player.SetCameraSecondaryFocusMode(_focus_mode); }
+        public void HandleAIType() { Player.SetBotBehavior(new BotBehavior(true, _predefinedAIType)); }
+        public void HandleProfile() { Player.SetProfile(Profile); }
+
+        public bool GetDeadOnSpawn() { return _dead_spawn; }
+        public bool CharacterIsDead() { return GetPlayer().IsDead; }
+        public bool GetOnStartShowDialogue() { return _showDialogueOnSpawn; } 
+        public bool GetOnStartSpawn() { return _on_start; }
+        public bool WasSpawned() { return _wasSpawn; }
+        public bool GetOnStartShowDescription() { return _showCharDescription; }
+
+        public string GetName() { return _name; }
+
+        public float GetTimeOnSpawn() { return _time_on_spawn; }
+    
+        public int GetDeadCount() { return this._dead_counter; }
+        public int GetUniqueID() { return _uniqueID; }
         
-        // public void OnCharacterDead()
-        // {
-        //     /* WIP */
-        // }
+        public PredefinedAIType GetAIType() { return _predefinedAIType; }
+        public IPlayer GetOldPlayer() { return this.OldPlayer; }
+        public IPlayer GetPlayer() { return Player; }
+        public PlayerModifiers GetModifiers() { return this.Modifiers;}
+        public IUser GetUser() { return this.User; }
 
-        public void SetName(string name) => _name = name;
-        public void SetOldPlayer(IPlayer player) => OldPlayer = player; //You can store real player if you need it
-        public void SetDeadOnSpawn(bool dead_spawn) => _dead_spawn = dead_spawn;
-        public void SetCharDescription(params string[] char_description) => this.Description = char_description; //Add description to character
-        
-        public bool GetDeadOnSpawn() => _dead_spawn;
-        public bool CharacterIsDead() => GetPlayer().IsDead;
-        
-        public int GetDeadCount() => this._dead_counter;
+        public Effect[] GetEffects() { return Skills; }
 
-        public PredefinedAIType GetAIType() => _predefinedAIType;
-
-        public IPlayer GetOldPlayer() => this.OldPlayer;
-
-        public PlayerModifiers GetModifiers() => this.Modifiers;
-
-        public void SetOnStartShowDialogue(bool show)
-        {
-            _showDialogueOnSpawn = show;
+        //Base character constructor
+        public Character() {
+            CharacterDebug = new SE_Debug("Character Debug log (" + _name + ")");
+            this.Profile = new IProfile();
+            this.Modifiers = new PlayerModifiers();
         }
 
-        public bool GetOnStartShowDialogue()
-        {
-            return _showDialogueOnSpawn;
+        //Using for creating player base on Character class
+        public IPlayer CreateCharacter(Vector2 position) {
+            SetPlayer(GameScriptInterface.Game.CreatePlayer(position));
+            SetUniqueID(GetPlayer().UniqueID);
+            OnCreateCharacter();
+            return this.Player;
         }
 
-        public void SetOnStartShowDescription(bool show)
+        public void HandleModifiers()
         {
-            _showCharDescription = show;
+            Player.SetModifiers(Modifiers);
+            Player.SetCorpseHealth(_corpse_health);
         }
 
-        public void SetOnStartSpawn(bool spawn)
-        {
-            _on_start = spawn;
+        public void HandleDeadOnSpawn() {
+            if (_dead_spawn == true)
+                Player.Kill();
         }
 
-        public bool GetOnStartSpawn()
-        {
-            return _on_start;
-        }
+        public void HandleUser() {
+            Player.SetUser(User);
 
-        public bool GetOnStartShowDescription()
-        {
-            return _showCharDescription;
-        }
-
-        public bool WasSpawned()
-        {
-            return _wasSpawn;
-        }
-
-        public void SetPackModifiers(PlayerModifiers modifiers)
-        {
-            Modifiers = modifiers;
+            if (SEE_Game.BotsSupport && User.IsBot) {
+                PredefinedAIType predefinedAIType = User.BotPredefinedAIType;
+                Player.SetBotBehavior(new BotBehavior(true, predefinedAIType));
+            }
         }
 
         //Send to user description about character
-        public void ShowCharDescription(bool show)
-        {
+        public void ShowCharDescription(bool show) {
             if (show && Description == null && User != null)
-            {
-                Global.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
-            }
+                SEE_Game.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
 
             if (show && Description != null && User != null)
             {
-                Global.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
-                Global.SendMessageToPlayer(User, Color.Green, Description);
+                SEE_Game.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
+                SEE_Game.SendMessageToPlayer(User, Color.Green, Description);
             }
         }
 
-        public void ShowCharDialogue(bool show)
-        {
+        public void ShowCharDialogue(bool show) {
             if (show == true)
-            {
                 CreateCharDialogue(Color.Red, 2000);
-            }
-        }
+        } 
 
-        public Effect[] GetEffects()
-        {
-            return Skills;
-        }
-
-        public void SetEffects(Effect[] effects)
-        {
-            Skills = effects;
-        }
-
-        public void AddPassiveEffects(params Effect[] effects)
-        {
-            Skills = effects;
-        }
-
-        public void ApplyPassiveEffects(Effect[] effects)
-        {
+        public void ApplyPassiveEffects(Effect[] effects) {
             foreach (Effect e in effects)
-            {
                 Player.Apply(e);
-            }
+        }
+
+        public void GiveWeapons() {
+            if (Weapons == null)
+                return;
+
+            foreach (WeaponItem weapon in Weapons)
+                Player.GiveWeaponItem(weapon);
+        }
+
+        public void GiveWeapons(WeaponItem[] weapons) {
+            foreach (WeaponItem weapon in weapons) 
+                Player.GiveWeaponItem(weapon);
         }
 
         public void SetProfileItems(Gender gender,
@@ -276,8 +254,7 @@ namespace Shootout
                                      IProfileClothingItem waist,
                                      IProfileClothingItem legs,
                                      IProfileClothingItem feet,
-                                     IProfileClothingItem accesory)
-        {
+                                     IProfileClothingItem accesory) {
             _gender = gender;
             _skin = skin;
             _head = head;
@@ -299,10 +276,8 @@ namespace Shootout
                                        IProfileClothingItem waist,
                                        IProfileClothingItem legs,
                                        IProfileClothingItem feet,
-                                       IProfileClothingItem accesory)
-        {
-            var profile = new IProfile()
-            {
+                                       IProfileClothingItem accesory) {
+            var profile = new IProfile() {
                 Name = _name,
                 Gender = gender,
                 Skin = skin,
@@ -319,43 +294,7 @@ namespace Shootout
             return profile;
         }
 
-        public void SetProfile(IProfile profile)
-        {
-            Profile = profile;
-        }
-
-        public void SetStatusBarVisible(bool hide_status)
-        {
-            _hide_status = hide_status;
-        }
-
-        public void SetNametagVisible(bool hide_name)
-        {
-            _hide_name = hide_name;
-        }
-
-        public void SetCorpseHealth(float corpse_health)
-        {
-            _corpse_health = corpse_health;
-        }
-
-        public void SetCameraFocus(CameraFocusMode focus_mode)
-        {
-            _focus_mode = focus_mode;
-        }
-
-        public void SetTimeOnSpawn(float time)
-        {
-            _time_on_spawn = time;
-        }
-
-        public float GetTimeOnSpawn()
-        {
-            return _time_on_spawn;
-        }
-
-        public void UpdateProfile()
-        {
+        public void UpdateProfile() {
             Profile = CreateProfile(_gender,
                                       _skin,
                                       _head,
@@ -368,8 +307,7 @@ namespace Shootout
                                       _accesory);
         }
 
-        public void UpdateModifiers()
-        {
+        public void UpdateModifiers() {
             Modifiers = CreateModifiers(_max_health,
                                           _max_energy,
                                           _current_health,
@@ -394,81 +332,6 @@ namespace Shootout
                                           _infinite_ammo,
                                           _item_drop);
         }
-
-        public void HandleStatusBarVisible()
-        {
-            Player.SetStatusBarsVisible(_hide_status);
-        }
-
-        public void HandleNametagVisible()
-        {
-            Player.SetNametagVisible(_hide_name);
-        }
-
-        public void HandleCameraFocus()
-        {
-            Player.SetCameraSecondaryFocusMode(_focus_mode);
-        }
-
-        public void HandleModifiers()
-        {
-            Player.SetModifiers(Modifiers);
-            Player.SetCorpseHealth(_corpse_health);
-        }
-
-        public void HandleDeadOnSpawn()
-        {
-            if (_dead_spawn == true) Player.Kill();
-        }
-
-        public void HandleAIType()
-        {
-            Player.SetBotBehavior(new BotBehavior(true, _predefinedAIType));
-        }
-
-        public void HandleProfile()
-        {
-            Player.SetProfile(Profile);
-        }
-
-        public void HandleUser()
-        {
-            Player.SetUser(User);
-
-            if (Global.botsSupport && User.IsBot)
-            {
-                PredefinedAIType predefinedAIType = User.BotPredefinedAIType;
-                Player.SetBotBehavior(new BotBehavior(true, predefinedAIType));
-            }
-        }
-
-        public void SetPlayer(IPlayer player)
-        {
-            Player = player;
-        }
-
-        public IPlayer GetPlayer()
-        {
-            return Player;
-        }
-
-        public void SetWeapons(WeaponItem[] weapons)
-        {
-            Weapons = weapons;
-        }
-
-        public void GiveWeapons()
-        {
-            if (Weapons == null)
-            {
-                return;
-            }
-
-            foreach (WeaponItem weapon in Weapons)
-                Player.GiveWeaponItem(weapon);
-        }
-
-        public void GiveWeapons(WeaponItem[] weapons) { foreach (WeaponItem weapon in weapons) Player.GiveWeaponItem(weapon); }
         
         public PlayerModifiers CreateModifiers(int max_health,
                                                 int max_energy,
@@ -492,10 +355,8 @@ namespace Shootout
                                                 float energy_recharge,
                                                 float size_modifier,
                                                 int infinite_ammo,
-                                                int item_drop)
-        {
-            var modifiers = new PlayerModifiers()
-            {
+                                                int item_drop) {
+            var modifiers = new PlayerModifiers() {
                 MaxHealth = max_health,
                 MaxEnergy = max_energy,
                 CurrentHealth = current_health,
@@ -524,13 +385,6 @@ namespace Shootout
             return modifiers;
         }
 
-        public string GetName() => _name;
-
-        public void SetUser(IUser user)
-        {
-            User = user;
-        }
-
         public void SetModifiers(int max_health,
                                   int max_energy,
                                   float current_health,
@@ -553,8 +407,7 @@ namespace Shootout
                                   float energy_recharge,
                                   float size_modifier,
                                   int infinite_ammo,
-                                  int item_drop)
-        {
+                                  int item_drop) {
             _max_health = max_health;
             _max_energy = max_energy;
             _current_health = current_health;
@@ -578,11 +431,6 @@ namespace Shootout
             _size_modifier = size_modifier;
             _infinite_ammo = infinite_ammo;
             _item_drop = item_drop;
-        }
-
-        public void CreateCharDialogue(Color color, float duration)
-        {
-            GameScriptInterface.Game.CreateDialogue(GetName(), color, GetPlayer(), "", duration, false);
         }
     }
 }

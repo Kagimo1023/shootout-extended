@@ -66,21 +66,21 @@ namespace Shootout
 
         public void OutputToUser(IUser user)
         {
-            Global.SendMessageToPlayer(user, Color.Green, "DEBUG OUTPUT: " + Name);
+            SEE_Game.SendMessageToPlayer(user, Color.Green, "DEBUG OUTPUT: " + Name);
 
             foreach (Tuple<string, Color> tuple in DebugLog)
             {
-                Global.SendMessageToPlayer(user, tuple.Item2, tuple.Item1);
+                SEE_Game.SendMessageToPlayer(user, tuple.Item2, tuple.Item1);
             }
         }
 
         public void OutputToHost()
         {
-            Global.SendMessageToHost(Color.Green, "DEBUG OUTPUT: " + Name);
+            SEE_Game.SendMessageToHost(Color.Green, "DEBUG OUTPUT: " + Name);
 
             foreach (Tuple<string, Color> tuple in DebugLog)
             {
-                Global.SendMessageToHost(tuple.Item2, tuple.Item1);
+                SEE_Game.SendMessageToHost(tuple.Item2, tuple.Item1);
             }
         }
     }

@@ -1,27 +1,41 @@
 #if standalone
 using SFDGameScriptInterface;
+using System;
 
 public partial class ShootoutScriptInterface : GameScriptInterface
 {
     public ShootoutScriptInterface (IGame game) : base(game) {}
 #endif
-    Shootout.Shootout shootout;
+
+    Shootout.T_Game t_Game = new Shootout.T_Game("Template Game");
 
     public void OnStartup ()
     {
-        shootout = new Shootout.Shootout (Game);
-        shootout.Start ();
-        shootout.RunOnStartupPlugins(Shootout.Shootout.GetPluginList());
-        shootout.RunOnUpdatePlugins(Shootout.Shootout.GetPluginList());
-        Events.UpdateCallback.Start(OnUpdate, 10);
+        t_Game.Start();
+        if (t_Game.CurrentMode != null) {
+            t_Game.CurrentMode.StartUp(true);
+            t_Game.CurrentMode.RunOnStartupPlugins(t_Game.CurrentMode.GetPlugins());
+            t_Game.CurrentMode.RunOnUpdatePlugins(t_Game.CurrentMode.GetPlugins());
+            Events.UpdateCallback.Start(OnUpdate, 1);
+        }
     }
 
-    public void OnUpdate (float ms) => OnGameover();
+    public void OnUpdate (float ms) {
+        OnGameover();
+    }
 
     public void OnGameover () {
-        if(Game.IsGameOver) shootout.RunOnGameoverPlugins(Shootout.Shootout.GetPluginList());
+        if(Game.IsGameOver && t_Game.CurrentMode != null)
+            t_Game.CurrentMode.RunOnGameoverPlugins(t_Game.CurrentMode.GetPlugins());
     }
 
-    public void AfterStartup () => shootout.RunAfterStartupPlugins (Shootout.Shootout.GetPluginList());
-    public void OnShutdown () => shootout.RunOnShutdownPlugins(Shootout.Shootout.GetPluginList());
+    public void AfterStartup () {
+        if (t_Game.CurrentMode != null)
+            t_Game.CurrentMode.RunAfterStartupPlugins(t_Game.CurrentMode.GetPlugins());
+    }
+
+    public void OnShutdown () {
+        if (t_Game.CurrentMode != null)
+            t_Game.CurrentMode.RunOnShutdownPlugins(t_Game.CurrentMode.GetPlugins());
+    }
 }

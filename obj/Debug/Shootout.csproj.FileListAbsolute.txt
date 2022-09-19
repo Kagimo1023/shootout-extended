@@ -6,3 +6,15 @@
 /home/runner/MealyStarkEngineering/obj/Debug/Shootout.csproj.CopyComplete
 /home/runner/MealyStarkEngineering/obj/Debug/Shootout.netmodule
 /home/runner/MealyStarkEngineering/obj/Debug/Shootout.pdb
+/home/runner/Shootout-Framework/obj/Debug/Shootout.csproj.AssemblyReference.cache
+/home/runner/Shootout-Framework/obj/Debug/Shootout.csproj.CoreCompileInputs.cache
+/home/runner/Shootout-Framework/obj/Debug/Shootout.netmodule
+/home/runner/Shootout-Framework/obj/Debug/Shootout.pdb
+/home/runner/BTFS-Framework/obj/Debug/Shootout.netmodule
+/home/runner/BTFS-Framework/obj/Debug/Shootout.pdb
+/home/runner/BTFS-Framework/obj/Debug/Shootout.csproj.AssemblyReference.cache
+/home/runner/BTFS-Framework/obj/Debug/Shootout.csproj.CoreCompileInputs.cache
+/home/runner/BTFS-Framework/bin/Debug/Shootout.netmodule
+/home/runner/BTFS-Framework/bin/Debug/Shootout.pdb
+/home/runner/BTFS-Framework/bin/Debug/SFD.GameScriptInterface.dll
+/home/runner/BTFS-Framework/obj/Debug/Shootout.csproj.CopyComplete

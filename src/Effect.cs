@@ -14,18 +14,18 @@ namespace Shootout
 
         IPlayer _playerOwner;
 
-        public Effect(Callbacks cb) => _cb = cb;
+        public Effect(Callbacks cb) { _cb = cb; }
         
-        public void HandleCharacter(Character character) => this.character = character;
+        public void HandleCharacter(Character character) { this.character = character; }
 
-        public IPlayer GetOwner() => _playerOwner;
-        public Character GetCharacter() => this.character;
-        public PlayerModifiers GetModifiers() => _playerOwner.GetModifiers();
+        public IPlayer GetOwner() {  return _playerOwner; }
+        public Character GetCharacter() { return this.character; }
+        public PlayerModifiers GetModifiers() { return _playerOwner.GetModifiers(); }
         
-        public bool IsOwn() => _isOwn;
+        public bool IsOwn() { return _isOwn; }
 
         public void SetOwner(IPlayer player) {_playerOwner = player; _isOwn = true; }
-        public void SetModifiers(PlayerModifiers mod) => _playerOwner.SetModifiers(mod);
+        public void SetModifiers(PlayerModifiers mod) { _playerOwner.SetModifiers(mod); }
 
         public abstract void Activate(IPlayer player);
     }

@@ -28,7 +28,7 @@
     <OutputType>Module</OutputType>
     <TargetExt>.netmodule</TargetExt>
     <DefineConstants>standalone</DefineConstants>
-    <MergedScript>bin\Shootout.txt</MergedScript>
+    <MergedScript>bin\BTFS_Framework.txt</MergedScript>
     <Header>src\ScriptInterface.cs</Header>
     <Footer>src\Footer.cs</Footer>
   </PropertyGroup>

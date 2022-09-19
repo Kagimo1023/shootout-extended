@@ -15,18 +15,18 @@ namespace Shootout
 
         public static IGame Game;
 
-        public Plugin() => Game = Shootout.GetGame();
+        public Plugin() {}
 
-        public void Information () => Global.SendMessageToAll(Color.Green, Description);
-        public void Information (IUser user) => Global.SendMessageToPlayer(user, Color.Green, Description);
+        public void Information () { SEE_Game.SendMessageToAll(Color.Green, Description); }
+        public void Information (IUser user){ SEE_Game.SendMessageToPlayer(user, Color.Green, Description); }
         
-        public float GetSleepOnUpdate() => OnUpdateSleep;
-        public ushort GetCyclesOnUpdate () => OnUpdateCycles;
-        public string [] GetDescription () => Description;
+        public float GetSleepOnUpdate(){ return OnUpdateSleep; }
+        public ushort GetCyclesOnUpdate () { return OnUpdateCycles; }
+        public string [] GetDescription () { return Description; }
         
-        public void SetSleepOnUpdate (float ms) => OnUpdateSleep = ms;
-        public void SetCyclesOnUpdate (ushort c) => OnUpdateCycles = c;
-        public void SetDescription (params string [] str) => Description = str;
+        public void SetSleepOnUpdate (float ms) { OnUpdateSleep = ms; }
+        public void SetCyclesOnUpdate (ushort c) { OnUpdateCycles = c; }
+        public void SetDescription (params string [] str) { Description = str; }
             
         public virtual void OnStartup () {}
         public virtual void AfterStartup () {}

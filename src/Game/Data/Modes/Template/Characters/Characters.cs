@@ -1,12 +1,11 @@
 namespace Shootout
 {
     using SFDGameScriptInterface;
-    
-    namespace Modes
+    namespace Modes.Characters
     {
         public static class List
         {
-            public static Mode [] ModeList = {
+            public static Character [] Playable = {
             };
         }
     }

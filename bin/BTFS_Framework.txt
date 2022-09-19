@@ -1,22 +1,36 @@
 #if standalone
 using SFDGameScriptInterface;
+using System;
 public partial class ShootoutScriptInterface : GameScriptInterface
 {
 public ShootoutScriptInterface (IGame game) : base(game) {}
 #endif
-Shootout.Shootout shootout;
+Shootout.T_Game t_Game = new Shootout.T_Game("Template Game");
 public void OnStartup ()
 {
-shootout = new Shootout.Shootout (Game);
-shootout.Start ();
-shootout.RunOnStartupPlugins(Shootout.Shootout.GetPluginList());
-shootout.RunOnUpdatePlugins(Shootout.Shootout.GetPluginList());
-Events.UpdateCallback.Start(OnUpdate, 10);
+t_Game.Start();
+if (t_Game.CurrentMode != null) {
+t_Game.CurrentMode.StartUp(true);
+t_Game.CurrentMode.RunOnStartupPlugins(t_Game.CurrentMode.GetPlugins());
+t_Game.CurrentMode.RunOnUpdatePlugins(t_Game.CurrentMode.GetPlugins());
+Events.UpdateCallback.Start(OnUpdate, 1);
 }
-public void OnUpdate (float ms) => OnGameover();
-public void OnGameover () { if(Game.IsGameOver) shootout.RunOnGameoverPlugins(Shootout.Shootout.GetPluginList()); }
-public void AfterStartup () => shootout.RunAfterStartupPlugins (Shootout.Shootout.GetPluginList());
-public void OnShutdown () => shootout.RunOnShutdownPlugins(Shootout.Shootout.GetPluginList());
+}
+public void OnUpdate (float ms) {
+OnGameover();
+}
+public void OnGameover () {
+if(Game.IsGameOver && t_Game.CurrentMode != null)
+t_Game.CurrentMode.RunOnGameoverPlugins(t_Game.CurrentMode.GetPlugins());
+}
+public void AfterStartup () {
+if (t_Game.CurrentMode != null)
+t_Game.CurrentMode.RunAfterStartupPlugins(t_Game.CurrentMode.GetPlugins());
+}
+public void OnShutdown () {
+if (t_Game.CurrentMode != null)
+t_Game.CurrentMode.RunOnShutdownPlugins(t_Game.CurrentMode.GetPlugins());
+}
 }
 namespace Shootout
 {
@@ -34,7 +48,6 @@ public class Callback<T>
 where T : IObject
 {
 protected Dictionary<int, List<Delegate>> _routes = new Dictionary<int, List<Delegate>> ();
-//protected Dictionary<int, List<float>> _routes_up = new Dictionary<int, List<float>> ();
 public void AddRoute (T match, MulticastDelegate target)
 {
 if (!_routes.ContainsKey (match.UniqueID))
@@ -184,23 +197,21 @@ protected float _energy_recharge = 1;
 protected float _size_modifier = 1;
 protected int _infinite_ammo = 1;
 protected int _item_drop = 1;
-protected float _corpse_health = 100; //additional modifier
+protected float _corpse_health = 100;
 #endregion
 #region char_options
-string _name = "Unnamed";    //Character name.
-float _time_on_spawn = 0;            /*Character time on spawn:
-You can use it for plugins or skills.*/
-int _uniqueID = -1;           //Unique ID for character
-int _dead_counter = 0;            /*Count of character dead:
-You can use it for plugins or skills.*/
-CameraFocusMode _focus_mode;                //Camera focus mode. Need for "pseudo independet cameras".
-bool _on_start = true;         //Spawn on start round or not
-bool _hide_name = false;        //Visibility for nametag players
-bool _hide_status = false;        //Visibility for status bar players
-bool _wasSpawn = false;        //Boolean var for check character was spawn or not
-bool _showDialogueOnSpawn = true;         //Show IDialogue on character spawn
-bool _showCharDescription = true;         //Show character description on character spawn
-bool _dead_spawn = false;        //Dead on spawn
+string _name = "Unnamed";
+float _time_on_spawn = 0;
+int _uniqueID = -1;
+int _dead_counter = 0;
+CameraFocusMode _focus_mode;
+bool _on_start = true;
+bool _hide_name = false;
+bool _hide_status = false;
+bool _wasSpawn = false;
+bool _showDialogueOnSpawn = true;
+bool _showCharDescription = true;
+bool _dead_spawn = false;
 PredefinedAIType _predefinedAIType = PredefinedAIType.None;
 #endregion
 public Character(bool OnStart,
@@ -213,8 +224,7 @@ PlayerModifiers Modifiers,
 WeaponItem[] Weapons,
 Effect[] Skills,
 int CorpseHealth = 100,
-bool DeadOnSpawn = false)
-{
+bool DeadOnSpawn = false) {
 this.Profile = new IProfile();
 this.Modifiers = new PlayerModifiers();
 SetOnStartSpawn(OnStart);
@@ -229,31 +239,7 @@ SetEffects(Skills);
 SetDeadOnSpawn(DeadOnSpawn);
 SetCorpseHealth(CorpseHealth);
 }
-//Base character constructor
-public Character()
-{
-CharacterDebug = new SE_Debug("Character Debug log (" + _name + ")");
-this.Profile = new IProfile();
-this.Modifiers = new PlayerModifiers();
-}
-public void SetUniqueID(int id)
-{
-_uniqueID = id;
-}
-public int GetUniqueID()
-{
-return _uniqueID;
-}
-//Using for creating player base on Character class
-public IPlayer CreateCharacter(Vector2 position)
-{
-SetPlayer(GameScriptInterface.Game.CreatePlayer(position));
-SetUniqueID(GetPlayer().UniqueID);
-OnCreateCharacter();
-return this.Player;
-}
-public void OnCreateCharacter()
-{
+public void OnCreateCharacter() {
 UpdateModifiers();
 UpdateProfile();
 HandleCameraFocus();
@@ -270,95 +256,105 @@ GiveWeapons();
 HandleDeadOnSpawn();
 _wasSpawn = true;
 }
-public IUser GetUser()
-{
-return this.User;
+public void SetUser(IUser user) { User = user; }
+public void SetProfile(IProfile profile) { Profile = profile; }
+public void SetStatusBarVisible(bool hide_status) { _hide_status = hide_status; }
+public void SetNametagVisible(bool hide_name) { _hide_name = hide_name; }
+public void SetCorpseHealth(float corpse_health) { _corpse_health = corpse_health; }
+public void SetCameraFocus(CameraFocusMode focus_mode) { _focus_mode = focus_mode; }
+public void SetTimeOnSpawn(float time) { _time_on_spawn = time; }
+public void SetWeapons(WeaponItem[] weapons) { Weapons = weapons; }
+public void SetPlayer(IPlayer player) { Player = player; }
+public void SetEffects(Effect[] effects) { Skills = effects; }
+public void AddPassiveEffects(params Effect[] effects) { Skills = effects; }
+public void SetOnStartShowDescription(bool show) { _showCharDescription = show; }
+public void SetOnStartSpawn(bool spawn) { _on_start = spawn; }
+public void CreateCharDialogue(Color color, float duration) { GameScriptInterface.Game.CreateDialogue(GetName(), color, GetPlayer(), "", duration, false); }
+public void SetAIType(PredefinedAIType predefinedAIType) { _predefinedAIType = predefinedAIType; }
+public void SetUniqueID(int id) { _uniqueID = id; }
+public void SetName(string name) { _name = name; }
+public void SetOldPlayer(IPlayer player) { OldPlayer = player; }
+public void SetDeadOnSpawn(bool dead_spawn) { _dead_spawn = dead_spawn; }
+public void SetCharDescription(params string[] char_description) { this.Description = char_description; }
+public void SetOnStartShowDialogue(bool show) { _showDialogueOnSpawn = show; }
+public void SetPackModifiers(PlayerModifiers modifiers) { Modifiers = modifiers; }
+public void HandleStatusBarVisible() { Player.SetStatusBarsVisible(_hide_status); }
+public void HandleNametagVisible() { Player.SetNametagVisible(_hide_name); }
+public void HandleCameraFocus() { Player.SetCameraSecondaryFocusMode(_focus_mode); }
+public void HandleAIType() { Player.SetBotBehavior(new BotBehavior(true, _predefinedAIType)); }
+public void HandleProfile() { Player.SetProfile(Profile); }
+public bool GetDeadOnSpawn() { return _dead_spawn; }
+public bool CharacterIsDead() { return GetPlayer().IsDead; }
+public bool GetOnStartShowDialogue() { return _showDialogueOnSpawn; }
+public bool GetOnStartSpawn() { return _on_start; }
+public bool WasSpawned() { return _wasSpawn; }
+public bool GetOnStartShowDescription() { return _showCharDescription; }
+public string GetName() { return _name; }
+public float GetTimeOnSpawn() { return _time_on_spawn; }
+public int GetDeadCount() { return this._dead_counter; }
+public int GetUniqueID() { return _uniqueID; }
+public PredefinedAIType GetAIType() { return _predefinedAIType; }
+public IPlayer GetOldPlayer() { return this.OldPlayer; }
+public IPlayer GetPlayer() { return Player; }
+public PlayerModifiers GetModifiers() { return this.Modifiers;}
+public IUser GetUser() { return this.User; }
+public Effect[] GetEffects() { return Skills; }
+//Base character constructor
+public Character() {
+CharacterDebug = new SE_Debug("Character Debug log (" + _name + ")");
+this.Profile = new IProfile();
+this.Modifiers = new PlayerModifiers();
 }
-public void SetAIType(PredefinedAIType predefinedAIType) => _predefinedAIType = predefinedAIType;
-// public void OnCharacterDead()
-// {
-//     /* WIP */
-// }
-public void SetName(string name) => _name = name;
-public void SetOldPlayer(IPlayer player) => OldPlayer = player; //You can store real player if you need it
-public void SetDeadOnSpawn(bool dead_spawn) => _dead_spawn = dead_spawn;
-public void SetCharDescription(params string[] char_description) => this.Description = char_description; //Add description to character
-public bool GetDeadOnSpawn() => _dead_spawn;
-public bool CharacterIsDead() => GetPlayer().IsDead;
-public int GetDeadCount() => this._dead_counter;
-public PredefinedAIType GetAIType() => _predefinedAIType;
-public IPlayer GetOldPlayer() => this.OldPlayer;
-public PlayerModifiers GetModifiers() => this.Modifiers;
-public void SetOnStartShowDialogue(bool show)
-{
-_showDialogueOnSpawn = show;
+//Using for creating player base on Character class
+public IPlayer CreateCharacter(Vector2 position) {
+SetPlayer(GameScriptInterface.Game.CreatePlayer(position));
+SetUniqueID(GetPlayer().UniqueID);
+OnCreateCharacter();
+return this.Player;
 }
-public bool GetOnStartShowDialogue()
+public void HandleModifiers()
 {
-return _showDialogueOnSpawn;
+Player.SetModifiers(Modifiers);
+Player.SetCorpseHealth(_corpse_health);
 }
-public void SetOnStartShowDescription(bool show)
-{
-_showCharDescription = show;
+public void HandleDeadOnSpawn() {
+if (_dead_spawn == true)
+Player.Kill();
 }
-public void SetOnStartSpawn(bool spawn)
-{
-_on_start = spawn;
+public void HandleUser() {
+Player.SetUser(User);
+if (SEE_Game.BotsSupport && User.IsBot) {
+PredefinedAIType predefinedAIType = User.BotPredefinedAIType;
+Player.SetBotBehavior(new BotBehavior(true, predefinedAIType));
 }
-public bool GetOnStartSpawn()
-{
-return _on_start;
-}
-public bool GetOnStartShowDescription()
-{
-return _showCharDescription;
-}
-public bool WasSpawned()
-{
-return _wasSpawn;
-}
-public void SetPackModifiers(PlayerModifiers modifiers)
-{
-Modifiers = modifiers;
 }
 //Send to user description about character
-public void ShowCharDescription(bool show)
-{
+public void ShowCharDescription(bool show) {
 if (show && Description == null && User != null)
-{
-Global.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
-}
+SEE_Game.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
 if (show && Description != null && User != null)
 {
-Global.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
-Global.SendMessageToPlayer(User, Color.Green, Description);
+SEE_Game.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
+SEE_Game.SendMessageToPlayer(User, Color.Green, Description);
 }
 }
-public void ShowCharDialogue(bool show)
-{
+public void ShowCharDialogue(bool show) {
 if (show == true)
-{
 CreateCharDialogue(Color.Red, 2000);
 }
-}
-public Effect[] GetEffects()
-{
-return Skills;
-}
-public void SetEffects(Effect[] effects)
-{
-Skills = effects;
-}
-public void AddPassiveEffects(params Effect[] effects)
-{
-Skills = effects;
-}
-public void ApplyPassiveEffects(Effect[] effects)
-{
+public void ApplyPassiveEffects(Effect[] effects) {
 foreach (Effect e in effects)
-{
 Player.Apply(e);
 }
+public void GiveWeapons() {
+if (Weapons == null)
+return;
+foreach (WeaponItem weapon in Weapons)
+Player.GiveWeaponItem(weapon);
+}
+public void GiveWeapons(WeaponItem[] weapons) {
+foreach (WeaponItem weapon in weapons)
+Player.GiveWeaponItem(weapon);
 }
 public void SetProfileItems(Gender gender,
 IProfileClothingItem skin,
@@ -369,8 +365,7 @@ IProfileClothingItem hands,
 IProfileClothingItem waist,
 IProfileClothingItem legs,
 IProfileClothingItem feet,
-IProfileClothingItem accesory)
-{
+IProfileClothingItem accesory) {
 _gender = gender;
 _skin = skin;
 _head = head;
@@ -391,10 +386,8 @@ IProfileClothingItem hands,
 IProfileClothingItem waist,
 IProfileClothingItem legs,
 IProfileClothingItem feet,
-IProfileClothingItem accesory)
-{
-var profile = new IProfile()
-{
+IProfileClothingItem accesory) {
+var profile = new IProfile() {
 Name = _name,
 Gender = gender,
 Skin = skin,
@@ -409,36 +402,7 @@ Accesory = accesory,
 };
 return profile;
 }
-public void SetProfile(IProfile profile)
-{
-Profile = profile;
-}
-public void SetStatusBarVisible(bool hide_status)
-{
-_hide_status = hide_status;
-}
-public void SetNametagVisible(bool hide_name)
-{
-_hide_name = hide_name;
-}
-public void SetCorpseHealth(float corpse_health)
-{
-_corpse_health = corpse_health;
-}
-public void SetCameraFocus(CameraFocusMode focus_mode)
-{
-_focus_mode = focus_mode;
-}
-public void SetTimeOnSpawn(float time)
-{
-_time_on_spawn = time;
-}
-public float GetTimeOnSpawn()
-{
-return _time_on_spawn;
-}
-public void UpdateProfile()
-{
+public void UpdateProfile() {
 Profile = CreateProfile(_gender,
 _skin,
 _head,
@@ -450,8 +414,7 @@ _legs,
 _feet,
 _accesory);
 }
-public void UpdateModifiers()
-{
+public void UpdateModifiers() {
 Modifiers = CreateModifiers(_max_health,
 _max_energy,
 _current_health,
@@ -476,66 +439,6 @@ _size_modifier,
 _infinite_ammo,
 _item_drop);
 }
-public void HandleStatusBarVisible()
-{
-Player.SetStatusBarsVisible(_hide_status);
-}
-public void HandleNametagVisible()
-{
-Player.SetNametagVisible(_hide_name);
-}
-public void HandleCameraFocus()
-{
-Player.SetCameraSecondaryFocusMode(_focus_mode);
-}
-public void HandleModifiers()
-{
-Player.SetModifiers(Modifiers);
-Player.SetCorpseHealth(_corpse_health);
-}
-public void HandleDeadOnSpawn()
-{
-if (_dead_spawn == true) Player.Kill();
-}
-public void HandleAIType()
-{
-Player.SetBotBehavior(new BotBehavior(true, _predefinedAIType));
-}
-public void HandleProfile()
-{
-Player.SetProfile(Profile);
-}
-public void HandleUser()
-{
-Player.SetUser(User);
-if (Global.botsSupport && User.IsBot)
-{
-PredefinedAIType predefinedAIType = User.BotPredefinedAIType;
-Player.SetBotBehavior(new BotBehavior(true, predefinedAIType));
-}
-}
-public void SetPlayer(IPlayer player)
-{
-Player = player;
-}
-public IPlayer GetPlayer()
-{
-return Player;
-}
-public void SetWeapons(WeaponItem[] weapons)
-{
-Weapons = weapons;
-}
-public void GiveWeapons()
-{
-if (Weapons == null)
-{
-return;
-}
-foreach (WeaponItem weapon in Weapons)
-Player.GiveWeaponItem(weapon);
-}
-public void GiveWeapons(WeaponItem[] weapons) { foreach (WeaponItem weapon in weapons) Player.GiveWeaponItem(weapon); }
 public PlayerModifiers CreateModifiers(int max_health,
 int max_energy,
 float current_health,
@@ -558,10 +461,8 @@ float sprint_speed,
 float energy_recharge,
 float size_modifier,
 int infinite_ammo,
-int item_drop)
-{
-var modifiers = new PlayerModifiers()
-{
+int item_drop) {
+var modifiers = new PlayerModifiers() {
 MaxHealth = max_health,
 MaxEnergy = max_energy,
 CurrentHealth = current_health,
@@ -588,11 +489,6 @@ ItemDropMode = item_drop
 };
 return modifiers;
 }
-public string GetName() => _name;
-public void SetUser(IUser user)
-{
-User = user;
-}
 public void SetModifiers(int max_health,
 int max_energy,
 float current_health,
@@ -615,8 +511,7 @@ float sprint_speed,
 float energy_recharge,
 float size_modifier,
 int infinite_ammo,
-int item_drop)
-{
+int item_drop) {
 _max_health = max_health;
 _max_energy = max_energy;
 _current_health = current_health;
@@ -641,67 +536,22 @@ _size_modifier = size_modifier;
 _infinite_ammo = infinite_ammo;
 _item_drop = item_drop;
 }
-public void CreateCharDialogue(Color color, float duration)
-{
-GameScriptInterface.Game.CreateDialogue(GetName(), color, GetPlayer(), "", duration, false);
-}
 }
 }
 namespace Shootout
 {
 using SFDGameScriptInterface;
-namespace Characters
-{
-public static class List
-{
-public static Character [] Playable = {
-};
-}
-}
-}
-namespace Shootout
-{
-namespace Characters.Data
-{
-public static class Descriptions
-{
-}
-}
-}
-namespace Shootout
-{
-using SFDGameScriptInterface;
-namespace Characters.Data
-{
-public static class Modifiers
-{
-}
-}
-}
-namespace Shootout
-{
-using SFDGameScriptInterface;
-namespace Characters.Data
-{
-}
-}
-namespace Shootout
-{
-namespace Characters.Data
-{
-public static class Skills
-{
-}
-}
-}
-namespace Shootout
-{
-using SFDGameScriptInterface;
-namespace Characters.Data
-{
-public static class Weapons
-{
-}
+using System;
+public class CommandInterface {
+// private IUser [] HandledUsers;
+// private string [] Commands;
+// public CommandInterface (SEE_Game see_game)
+// {
+// }
+// public void HandleUsers (IUser [] Users) => HandledUsers = Users;
+// public void SetCommands (string [] Commands) => this.Commands = Commands;
+// public IUser [] GetHandledUsers () => HandledUsers;
+// public string [] GetCommands () => Commands;
 }
 }
 namespace Shootout
@@ -715,125 +565,74 @@ protected string[] Description { get; set; }
 private Character character;
 private bool _isOwn = false;
 IPlayer _playerOwner;
-public Effect(Callbacks cb) => _cb = cb;
-public void HandleCharacter(Character character) => this.character = character;
-public IPlayer GetOwner() => _playerOwner;
-public Character GetCharacter() => this.character;
-public PlayerModifiers GetModifiers() => _playerOwner.GetModifiers();
-public bool IsOwn() => _isOwn;
+public Effect(Callbacks cb) { _cb = cb; }
+public void HandleCharacter(Character character) { this.character = character; }
+public IPlayer GetOwner() {  return _playerOwner; }
+public Character GetCharacter() { return this.character; }
+public PlayerModifiers GetModifiers() { return _playerOwner.GetModifiers(); }
+public bool IsOwn() { return _isOwn; }
 public void SetOwner(IPlayer player) {_playerOwner = player; _isOwn = true; }
-public void SetModifiers(PlayerModifiers mod) => _playerOwner.SetModifiers(mod);
+public void SetModifiers(PlayerModifiers mod) { _playerOwner.SetModifiers(mod); }
 public abstract void Activate(IPlayer player);
 }
 }
-namespace Shootout
-{
-using SFDGameScriptInterface;
+namespace Shootout {
 using System.Collections.Generic;
 using System.Linq;
 using System;
-public static class Global
-{
-/* SHOOTOUT MODE: EXTENDED SETTINGS */
-public static bool showDialogues = true;
-public static bool showDescriptions = true;
-public static bool shuffleCharacters = true;
-public static bool debugMode = true;
-public static bool cloneableChars = false;
-public static bool oneAndOnlyMode = false;
-public static bool unstableBuild = true;
-public static bool botsSupport = true;
-public static readonly string version = "v0.40 Pre-Alpha";
-public static readonly string [] buildType =
-{
-"(Release ",
-"(Unstable)"
-};
-public static readonly string gameName = "SHOOTOUT: EXTENDED MODE " + version;
-public static readonly string features =
-gameName + "/n" +
-"- New plugin Doors Generator!/n" +
-"- New plugin Spectating Mode!/n" +
-"- Fixed many bugs in script!/n/n";
+using SFDGameScriptInterface;
+public class SEE_Game : GameScriptInterface {
+// public static IGame Game;
+public string Name = "Unnamed";
+public static bool EnableToShowInformation;
+public static bool BotsSupport = true;
+public static bool ShowDialogues = true;
+public static bool ShowDescriptions = true;
+public static bool ShuffleCharacters = true;
+public static Vector2 [] SpawnPoints;
+public string [] Description = null;
+public string [] Authors = null;
+public static int [] Users;
+public static readonly string Features;
+public string License = "License: GNU LGPL v3";
+public Mode [] Modes = null;
+public Mode CurrentMode = null;
 public static Random random = new Random ();
-public static List <Vector2> _spawnPoints = new List <Vector2> ();
-public static int [] _users;
-// Original author: NearHuscarl
-// https://github.com/NearHuscarl/BotExtended/blob/master/src/BotExtended/Library/SharpHelper.cs
-#region NearHuscarlCode
-public static T StringToEnum<T>(string str)
+public SEE_Game (string Name) : base(null)
 {
-return (T)Enum.Parse(typeof(T), str);
+this.Name = Name;
 }
-public static T[] EnumToArray<T>()
+public void TryToStartMode (Mode mode)
 {
-return (T[])Enum.GetValues(typeof(T));
-}
-public static string EnumToString<T>(T enumVal)
+if (mode != null)
 {
-return Enum.GetName(typeof(T), enumVal);
-}
-public static bool TryParseEnum<T>(string str, out T result) where T : struct, IConvertible
+if (CurrentMode.OnStartup)
 {
-result = default(T);
-if (!typeof(T).IsEnum)
-{
-return false;
-}
-int index = -1;
-if (int.TryParse(str, out index))
-{
-if (Enum.IsDefined(typeof(T), index))
-{
-// https://stackoverflow.com/questions/10387095/cast-int-to-generic-enum-in-c-sharp
-result = (T)(object)index;
-}
-else
-{
-return false;
+CurrentMode.StartUp(CurrentMode.OnStartup);
 }
 }
 else
 {
-if (!Enum.TryParse(str, ignoreCase: true, result: out result))
+GameScriptInterface.Game.ShowChatMessage("Game not contain a mode. Game started with default SFD map type mode.", Color.Green);
+}
+}
+public void SetRandomMode (Mode [] Modes)
 {
-return false;
-}
-}
-return true;
-}
-public static void Timeout(Action callback, uint interval)
+if (Modes != null)
 {
-Events.UpdateCallback.Start(e => callback.Invoke(), interval, 1);
+Random random = new Random ();
+CurrentMode = Modes[random.Next (0, Modes.Length)];
 }
-#endregion
+}
 public static void OnStartMessages ()
 {
-GameScriptInterface.Game.ShowPopupMessage (features, Color.Green);
+GameScriptInterface.Game.ShowPopupMessage (Features, Color.Green);
 Events.UpdateCallback.Start((x) => GameScriptInterface.Game.HidePopupMessage(), 7000u, 1);
-}
-public static void Shuffle<T> (this Random rng, T[] array)
-{
-int n = array.Length;
-while (n > 1)
-{
-int k = rng.Next(n--);
-T temp = array[n];
-array[n] = array[k];
-array[k] = temp;
-}
-}
-public static Int32 GetPercent(Int32 b, Int32 a)
-{
-if (b == 0) return 0;
-return (Int32)( a / (b / 100M));
 }
 public static void SendMessageToAll (Color color, params string [] message)
 {
 foreach (string msg in message)
-{
 GameScriptInterface.Game.ShowChatMessage (msg, color);
-}
 }
 public static Vector2 GetCenterOfObject (IObject obj)
 {
@@ -863,65 +662,177 @@ GameScriptInterface.Game.ShowChatMessage (msg, color, args.User.UserIdentifier);
 }
 }
 }
-public static void OnStartDescriptions (bool show)
+public static Vector2 GetSpawnPoint (int id) {
+return SpawnPoints [id];
+}
+public void OnStartDescriptions (bool show, Mode mode)
 {
-foreach (Character character in Characters.List.Playable)
-{
+foreach (Character character in GetCurrentMode().GetPlayableCharacters())
 character.SetOnStartShowDescription (show);
 }
-}
-public static void OnStartDialogues (bool show)
+public void OnStartDialogues (bool show)
 {
-foreach (Character character in Characters.List.Playable)
-{
+foreach (Character character in CurrentMode.GetPlayableCharacters())
 character.SetOnStartShowDialogue (show);
 }
-}
-public static IDialogue CreateDialogue (string text, Color color, Vector2 pos, string name, float duration, bool showInChat)
+public IDialogue CreateDialogue (string text, Color color, Vector2 pos, string name, float duration, bool showInChat)
 {
 return GameScriptInterface.Game.CreateDialogue (text, color, pos, name, duration, showInChat);
 }
-public static void ShowCFTX (string text, IObject obj)
+public void ShowCFTX (string text, IObject obj)
 {
 GameScriptInterface.Game.PlayEffect ("CFTXT", obj.GetWorldPosition (), text);
 }
-public static void ShowGameEffect (string gameEffectName, IObject obj)
+public void ShowGameEffect (string gameEffectName, IObject obj)
 {
 GameScriptInterface.Game.PlayEffect (gameEffectName, obj.GetWorldPosition ());
 }
-public static int[] GenerateRandomArrayNonDuplicate (int length)
-{
-return Enumerable.Range (0, length).OrderBy(c => random.Next()).ToArray();
-}
 public static void SetSpawnPoints ()
 {
-Global._users = Global.GenerateRandomArrayNonDuplicate (GameScriptInterface.Game.GetActiveUsers ().Length);
+Users = Global.GenerateRandomArrayNonDuplicate (GameScriptInterface.Game.GetActiveUsers ().Length);
 foreach (IObject obj in GameScriptInterface.Game.GetObjectsByName("SpawnPlayer"))
 {
-_spawnPoints.Add (obj.GetWorldPosition ());
+Global.Append (SpawnPoints,obj.GetWorldPosition ());
 }
 }
-public static float GetPercentByValue (float current, float maximum)
+public void SetDescription (params string [] Description) { this.Description = Description; }
+public void SetName (string Name) { this.Name = Name; }
+public void SetMode (Mode mode) { this.CurrentMode = mode; }
+public void SetAuthors (params string [] Authors) { this.Authors = Authors; }
+public Mode GetCurrentMode () {
+return CurrentMode;
+}
+public string GetName () { return this.Name; }
+public string [] GetAuthors () { return this.Authors; }
+public Mode [] GetModeList () { return this.Modes; }
+}
+}
+namespace Shootout
 {
-float result = (float) Math.Round ((double) (100 * current) / maximum);
-if (debugMode == true) GameScriptInterface.Game.ShowPopupMessage ("Percent by value: " + result.ToString ("N2") + "%");
-return result;
-}
-public static double GetPercentByValue (double current, double maximum)
+using SFDGameScriptInterface;
+namespace Modes
 {
-double result = Math.Round ((double) (100 * current) / maximum);
-if (debugMode == true) GameScriptInterface.Game.ShowPopupMessage ("Percent by value: " + result.ToString ("N2") + "%");
-return result;
-}
-public static int GetPercentByValue (int current, int maximum)
+public class Template : Mode
 {
-int result = (int) Math.Round ((double) (100 * current) / maximum);
-if (debugMode == true) GameScriptInterface.Game.ShowPopupMessage ("Percent by value: " + result + "%");
-return result;
-}
-public static Vector2 GetSpawnPoint (int id)
+public Template(string Name, bool Enable) : base(Name, Enable)
 {
-return _spawnPoints [id];
+SetName("Template Mode");
+}
+public override void StartUp(bool Enable)
+{
+if (Enable)
+{
+BTFS_Callbacks.Data.InitializeCallbacks();
+}
+}
+public override bool CheckSettings(object[] Settings)
+{
+throw new System.NotImplementedException();
+}
+}
+}
+}
+namespace Shootout
+{
+using SFDGameScriptInterface;
+namespace Modes.BTFS_Callbacks
+{
+public static class Data
+{
+public static Callbacks cbs;
+public static void InitializeCallbacks ()
+{
+cbs = new Callbacks();
+cbs.OnPlayerDamage = new PlayerDamageCallback ();
+cbs.OnPlayerDeath = new PlayerDeathCallback ();
+cbs.OnPlayerKeyInput = new PlayerKeyInputCallback ();
+cbs.OnObjectCreated = new UpdateCallback ();
+StartCallbacks();
+}
+public static void StartCallbacks()
+{
+Events.PlayerDamageCallback.Start (((PlayerDamageCallback)cbs.OnPlayerDamage).Run);
+Events.PlayerDeathCallback.Start (((PlayerDeathCallback)cbs.OnPlayerDeath).Run);
+Events.PlayerKeyInputCallback.Start (((PlayerKeyInputCallback)cbs.OnPlayerKeyInput).Run);
+Events.UpdateCallback.Start (((UpdateCallback)cbs.OnObjectCreated).Run);
+}
+}
+}
+}
+namespace Shootout
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters
+{
+public static class List
+{
+public static Character [] Playable = {
+};
+}
+}
+}
+namespace Shootout
+{
+namespace Modes.Characters.Data
+{
+public static class Descriptions
+{
+}
+}
+}
+namespace Shootout
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters.Data
+{
+public static class Modifiers
+{
+}
+}
+}
+namespace Shootout
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters.Data {
+}
+}
+namespace Shootout
+{
+namespace Modes.Characters.Data {
+public static class Skills {
+}
+}
+}
+namespace Shootout
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters.Data {
+public static class Weapons {
+}
+}
+}
+namespace Shootout
+{
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Reflection;
+using System.Diagnostics;
+using SFDGameScriptInterface;
+public class T_Game : SEE_Game
+{
+public T_Game (string Name) : base (Name)
+{
+Name = "Template Game";
+SetDescription (Name + ": ", "This only template for your own modes! You can add your plugins, characters, and skills to game modes!");
+CurrentMode = new Modes.Template ("Template Mode", true);
+}
+public void Start ()
+{
+long kbAfter1 = GC.GetTotalMemory(false) / (1024 * 1024);
+SEE_Game.SendMessageToHost(Color.Green, Description);
+SEE_Game.SendMessageToHost(Color.Yellow, string.Format("RAM: {0}", kbAfter1));
 }
 }
 }
@@ -929,148 +840,99 @@ namespace Shootout
 {
 using SFDGameScriptInterface;
 using System.Collections.Generic;
-class Shootout
+using System.Linq;
+using System;
+public static class Global
 {
-public static IGame Game;
-public static Callbacks _cb;
-public static List<Plugin> PluginList = new List<Plugin>();
-SE_Debug MainDebug;
-public Shootout (IGame game)
+/* SHOOTOUT MODE: EXTENDED SETTINGS */
+public static bool DebugMode = true;
+public static bool CloneableChars = false;
+public static bool OneAndOnlyMode = false;
+public static bool UnstableBuild = true;
+// Original author: NearHuscarl
+// https://github.com/NearHuscarl/BotExtended/blob/master/src/BotExtended/Library/SharpHelper.cs
+#region NearHuscarlCode
+public static T StringToEnum<T>(string str) { return (T)Enum.Parse(typeof(T), str); }
+public static T[] EnumToArray<T>() { return (T[])Enum.GetValues(typeof(T)); }
+public static string EnumToString<T>(T enumVal) { return Enum.GetName(typeof(T), enumVal); }
+public static void Timeout(Action callback, uint interval) {Events.UpdateCallback.Start(e => callback.Invoke(), interval, 1);}
+public static bool TryParseEnum<T>(string str, out T result) where T : struct, IConvertible
 {
-MainDebug = new SE_Debug("Main Debug Log");
-MainDebug.AddToLogSuccessful("Shootout() was called");
-Game = game;
-_cb = new Callbacks ();
-_cb.OnPlayerDamage = new PlayerDamageCallback ();
-_cb.OnPlayerDeath = new PlayerDeathCallback ();
-_cb.OnPlayerKeyInput = new PlayerKeyInputCallback ();
-_cb.OnObjectCreated = new UpdateCallback ();
-MainDebug.AddToLogSuccessful("Shootout() successful started!");
+result = default(T);
+if (!typeof(T).IsEnum)
+{
+return false;
 }
-private void StartCallbacks ()
+int index = -1;
+if (int.TryParse(str, out index))
 {
-Events.PlayerDamageCallback.Start (((PlayerDamageCallback)_cb.OnPlayerDamage).Run);
-Events.PlayerDeathCallback.Start (((PlayerDeathCallback)_cb.OnPlayerDeath).Run);
-Events.PlayerKeyInputCallback.Start (((PlayerKeyInputCallback)_cb.OnPlayerKeyInput).Run);
-Events.UpdateCallback.Start (((UpdateCallback)_cb.OnObjectCreated).Run);
+if (Enum.IsDefined(typeof(T), index))
+{
+// https://stackoverflow.com/questions/10387095/cast-int-to-generic-enum-in-c-sharp
+result = (T)(object)index;
 }
-private void PluginSetup ()
+else
 {
-MainDebug.AddToLogSuccessful("PluginSetup() was called");
-if (Global.debugMode == true && PluginList.Count == 0)
-Global.SendMessageToHost (Color.Green, "Plugin list is empty!");
-}
-public void Start ()
-{
-StartCallbacks ();
-Global.SetSpawnPoints ();
-ShuffleCharacters (Global.shuffleCharacters);
-Global.OnStartMessages ();
-GenerateCharacters ();
-PluginSetup ();
-}
-private void ShuffleCharacters (bool shuffle) { if (shuffle) Global.random.Shuffle (Characters.List.Playable); }
-public static Callbacks GetCallbacks () => _cb;
-public static IGame GetGame() => Game;
-private void NonSpawnCharacters (params Character [] characters)
-{
-foreach (Character chr in characters)
-chr.SetOnStartSpawn (false);
-}
-private void GenerateCharacters ()
-{
-int id = 0;
-int [] spw = Global.GenerateRandomArrayNonDuplicate (Global._spawnPoints.Count);
-if (Characters.List.Playable.Length == 0) return;
-foreach (Character character in Characters.List.Playable)
-{
-if (id < Global._users.Length)
-{
-if (character.GetOnStartSpawn ())
-{
-character.SetOldPlayer (Game.GetActiveUsers () [Global._users [id]].GetPlayer ());
-character.GetOldPlayer ().Remove ();
-character.SetUser (Game.GetActiveUsers () [Global._users [id]]);
-if (id < Global._spawnPoints.Count)
-{
-character.CreateCharacter (Global.GetSpawnPoint (spw [id]));
+return false;
 }
 }
-id++;
-}
-}
-}
-#region PluginManipulationRegion
-public static Plugin GetPluginById (int id) => PluginList[id];
-// Get plugins list by type
-public static List <Plugin> GetPluginList () => PluginList;
-// Add some plugin on start. This function checking type of plugin and add to some category.
-public static void AddActionToList (Plugin plugin) => PluginList.Add(plugin);
-public void RunOnStartupPlugins(List<Plugin> ActionList)
+else
 {
-if (ActionList != null && ActionList.Count != 0)
+if (!Enum.TryParse(str, ignoreCase: true, result: out result))
 {
-foreach (Plugin plg in ActionList)
-{
-if (plg != null)
-plg.OnStartup();
-}
-} else {
-if (Global.debugMode == true)
-Global.SendMessageToHost (Color.Yellow, "OnStartup call failed! Plugin list is empty!");
+return false;
 }
 }
-public void RunAfterStartupPlugins(List<Plugin> ActionList)
-{
-if (ActionList != null && ActionList.Count != 0)
-{
-foreach (Plugin plg in ActionList)
-{
-if (plg != null)
-plg.AfterStartup();
-}
-} else {
-}
-}
-public void RunOnShutdownPlugins(List<Plugin> ActionList)
-{
-if (ActionList != null && ActionList.Count != 0)
-{
-foreach (Plugin plg in ActionList)
-{
-if (plg != null)
-plg.OnShutdown();
-}
-} else {
-}
-}
-public void RunOnUpdatePlugins(List<Plugin> ActionList)
-{
-if (ActionList != null && ActionList.Count != 0)
-{
-foreach (Plugin plg in ActionList)
-{
-if (plg != null)
-{
-Events.UpdateCallback.Start(plg.OnUpdate, (uint) plg.GetSleepOnUpdate(), plg.GetCyclesOnUpdate());
-}
-}
-} else {
-}
-}
-public void RunOnGameoverPlugins(List<Plugin> ActionList)
-{
-if (ActionList != null && ActionList.Count != 0)
-{
-foreach (Plugin plg in ActionList)
-{
-if (plg != null)
-plg.OnGameover();
-}
-} else {
-}
+return true;
 }
 #endregion
+public static void Shuffle<T> (this Random rng, T[] array)
+{
+int n = array.Length;
+while (n > 1)
+{
+int k = rng.Next(n--);
+T temp = array[n];
+array[n] = array[k];
+array[k] = temp;
+}
+}
+public static Int32 GetPercent(Int32 b, Int32 a)
+{
+if (b == 0) return 0;
+return (Int32)( a / (b / 100M));
+}
+public static int[] GenerateRandomArrayNonDuplicate (int length)
+{
+Random random = new Random();
+return Enumerable.Range (0, length).OrderBy(c => random.Next()).ToArray();
+}
+public static float GetPercentByValue (float current, float maximum)
+{
+float result = (float) Math.Round ((double) (100 * current) / maximum);
+return result;
+}
+public static double GetPercentByValue (double current, double maximum)
+{
+double result = Math.Round ((double) (100 * current) / maximum);
+return result;
+}
+public static int GetPercentByValue (int current, int maximum)
+{
+int result = (int) Math.Round ((double) (100 * current) / maximum);
+return result;
+}
+public static T[] Append<T>(this T[] array, T item)
+{
+if (array == null)
+{
+return new T[] { item };
+}
+T[] result = new T[array.Length + 1];
+array.CopyTo(result, 0);
+result[array.Length] = item;
+return result;
+}
 }
 }
 // Author: NearHuscarl
@@ -1239,16 +1101,141 @@ return Global.StringToEnum<WeaponItem>(Global.EnumToString<ProjectileItem>(proje
 }
 }
 }
+namespace Shootout {
+using System;
+using SFDGameScriptInterface;
+public abstract class Mode {
+public static Callbacks CallbackList;
+private string Name;
+private string [] Authors = null;
+private string [] Description = null;
+private object [] Settings = null;
+private Character [] Playable = null;
+private Character [] NonPlayable = null;
+private Character [] Death = null;
+private Plugin [] Plugins = null;
+public bool OnStartup { get; set; }
+public Mode (string Name, bool OnStartup)
+{
+this.Name = Name;
+this.OnStartup = OnStartup;
+}
+public void StopAllPlugins (Plugin [] Plugins)
+{
+foreach (Plugin plugin in Plugins)
+plugin.Enable = false;
+}
+public void SetPlayableCharacterrs (params Character [] Characters) {
+this.Playable = Characters;
+}
+public void SetNonPlayableCharacterrs (params Character [] Characters) {
+this.NonPlayable = Characters;
+}
+public void SetDeathCharacterrs (params Character [] Characters) {
+this.Death = Characters;
+}
+public void SetSettings (object [] Settings) {
+this.Settings = Settings;
+}
+public void SetName (string Name) {
+this.Name = Name;
+}
+public void SetAuthors (params string [] Authors) {
+this.Authors = Authors;
+}
+public void SetPlugins (params Plugin [] Plugins) {
+this.Plugins = Plugins;
+}
+public void SetDescription (params string [] Description) {
+this.Description = Description;
+}
+public string GetName () { return this.Name; }
+public object [] GetSettings () {return this.Settings;}
+public string [] GetDescription () { return this.Description; }
+public object [] GetAuthors () { return this.Authors; }
+public Plugin [] GetPlugins () { return this.Plugins; }
+public Callbacks GetCallbacks () { return Mode.CallbackList; }
+public Character [] GetPlayableCharacters () {return this.Playable; }
+public abstract void StartUp(bool Start);
+public abstract bool CheckSettings (object [] Settings);
+#region PluginManipulationRegion
+// Add some plugin on start. This function checking type of plugin and add to some category.
+public void RunOnStartupPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.OnStartup();
+}
+} else {
+}
+}
+public void RunAfterStartupPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.AfterStartup();
+}
+} else {
+}
+}
+public void RunOnShutdownPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.OnShutdown();
+}
+} else {
+}
+}
+public void RunOnUpdatePlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+{
+Events.UpdateCallback.Start(plg.OnUpdate, (uint) plg.GetSleepOnUpdate(), plg.GetCyclesOnUpdate());
+}
+}
+} else {
+}
+}
+public void RunOnGameoverPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.OnGameover();
+}
+} else {
+return;
+}
+}
+#endregion
+}
+}
 namespace Shootout
 {
 using SFDGameScriptInterface;
 static class PlayerExtensions
 {
-public static void Apply (this IPlayer player, Effect effect) => effect.Activate (player);
+public static void Apply (this IPlayer player, Effect effect) { effect.Activate (player);}
 public static Character GetCharacter (this IPlayer player)
 {
 Character temp = null;
-foreach (Character tmp in Characters.List.Playable)
+foreach (Character tmp in Modes.Characters.List.Playable)
 {
 if (tmp != null && tmp.GetPlayer () != null)
 {
@@ -1265,7 +1252,8 @@ return temp;
 namespace Shootout
 {
 using SFDGameScriptInterface;
-public partial class Plugin
+using System;
+public class Plugin
 {
 public string Name { get; set; }
 public bool Enable { get; set; }
@@ -1273,15 +1261,15 @@ private float OnUpdateSleep = 0;
 private ushort OnUpdateCycles = 1;
 public string [] Description = null;
 public static IGame Game;
-public Plugin() => Game = Shootout.GetGame();
-public void Information () => Global.SendMessageToAll(Color.Green, Description);
-public void Information (IUser user) => Global.SendMessageToPlayer(user, Color.Green, Description);
-public float GetSleepOnUpdate() => OnUpdateSleep;
-public ushort GetCyclesOnUpdate () => OnUpdateCycles;
-public string [] GetDescription () => Description;
-public void SetSleepOnUpdate (float ms) => OnUpdateSleep = ms;
-public void SetCyclesOnUpdate (ushort c) => OnUpdateCycles = c;
-public void SetDescription (params string [] str) => Description = str;
+public Plugin() {}
+public void Information () { SEE_Game.SendMessageToAll(Color.Green, Description); }
+public void Information (IUser user){ SEE_Game.SendMessageToPlayer(user, Color.Green, Description); }
+public float GetSleepOnUpdate(){ return OnUpdateSleep; }
+public ushort GetCyclesOnUpdate () { return OnUpdateCycles; }
+public string [] GetDescription () { return Description; }
+public void SetSleepOnUpdate (float ms) { OnUpdateSleep = ms; }
+public void SetCyclesOnUpdate (ushort c) { OnUpdateCycles = c; }
+public void SetDescription (params string [] str) { Description = str; }
 public virtual void OnStartup () {}
 public virtual void AfterStartup () {}
 public virtual void OnShutdown () {}
@@ -1345,18 +1333,18 @@ HaveWarnings = true;
 }
 public void OutputToUser(IUser user)
 {
-Global.SendMessageToPlayer(user, Color.Green, "DEBUG OUTPUT: " + Name);
+SEE_Game.SendMessageToPlayer(user, Color.Green, "DEBUG OUTPUT: " + Name);
 foreach (Tuple<string, Color> tuple in DebugLog)
 {
-Global.SendMessageToPlayer(user, tuple.Item2, tuple.Item1);
+SEE_Game.SendMessageToPlayer(user, tuple.Item2, tuple.Item1);
 }
 }
 public void OutputToHost()
 {
-Global.SendMessageToHost(Color.Green, "DEBUG OUTPUT: " + Name);
+SEE_Game.SendMessageToHost(Color.Green, "DEBUG OUTPUT: " + Name);
 foreach (Tuple<string, Color> tuple in DebugLog)
 {
-Global.SendMessageToHost(tuple.Item2, tuple.Item1);
+SEE_Game.SendMessageToHost(tuple.Item2, tuple.Item1);
 }
 }
 }
