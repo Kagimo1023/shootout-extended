@@ -1,7 +1,7 @@
 // Author: NearHuscarl
 // Link:   https://github.com/NearHuscarl/BotExtended/blob/master/src/BotExtended/Library/Mapper.cs
 
-namespace Shootout
+namespace BTFS
 {
     using SFDGameScriptInterface;
 

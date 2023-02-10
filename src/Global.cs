@@ -1,4 +1,4 @@
-namespace Shootout
+namespace BTFS
 {
     using SFDGameScriptInterface;
     using System.Collections.Generic;
@@ -7,11 +7,10 @@ namespace Shootout
 
     public static class Global
     {
-        /* SHOOTOUT MODE: EXTENDED SETTINGS */
-        public static bool DebugMode = true;
-        public static bool CloneableChars = false;
-        public static bool OneAndOnlyMode = false;
+        /* BTFS Settings */
+        public static bool Debug = true;
         public static bool UnstableBuild = true;
+        public static readonly string Version = "v0.50 Beta";
 
         // Original author: NearHuscarl
         // https://github.com/NearHuscarl/BotExtended/blob/master/src/BotExtended/Library/SharpHelper.cs

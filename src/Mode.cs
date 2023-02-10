@@ -1,4 +1,4 @@
-namespace Shootout {
+namespace BTFS {
     using System;
     using SFDGameScriptInterface;
     
@@ -14,6 +14,10 @@ namespace Shootout {
         private Character [] Playable = null;
         private Character [] NonPlayable = null;
         private Character [] Death = null;
+
+        private CommandShell [] HostCommandsList = null;
+        private CommandShell [] ModeratorCommandsList = null;
+        private CommandShell [] UserCommandsList = null;
         
         private Plugin [] Plugins = null;
 
@@ -33,6 +37,21 @@ namespace Shootout {
 
         public void SetPlayableCharacterrs (params Character [] Characters) { 
             this.Playable = Characters;
+        }
+
+        public void SetHostCommandsList (params CommandShell [] Commands)
+        {
+            this.HostCommandsList = Commands;
+        }
+
+        public void SetModeratorCommandsList (params CommandShell [] Commands)
+        {
+            this.ModeratorCommandsList = Commands;
+        }
+
+        public void SetUserCommandsList (params CommandShell [] Commands)
+        {
+            this.UserCommandsList = Commands;
         }
         
         public void SetNonPlayableCharacterrs (params Character [] Characters) {
@@ -67,9 +86,11 @@ namespace Shootout {
         public string [] GetDescription () { return this.Description; }
         public object [] GetAuthors () { return this.Authors; }
         public Plugin [] GetPlugins () { return this.Plugins; }
-        public Callbacks GetCallbacks () { return Mode.CallbackList; }
         public Character [] GetPlayableCharacters () {return this.Playable; }
-
+        public CommandShell [] GetHostCommandsList () {return this.HostCommandsList; }
+        public CommandShell [] GetModeratorCommandsList () {return this.ModeratorCommandsList; }
+        public CommandShell [] GetUserCommandsList () {return this.UserCommandsList; }
+        
         public abstract void StartUp(bool Start);
         public abstract bool CheckSettings (object [] Settings);
 

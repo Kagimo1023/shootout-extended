@@ -1,0 +1,8 @@
+/home/runner/shootout-extended/obj/Debug/shootout-extended.csproj.AssemblyReference.cache
+/home/runner/shootout-extended/obj/Debug/shootout-extended.csproj.CoreCompileInputs.cache
+/home/runner/shootout-extended/bin/Debug/shootout-extended.netmodule
+/home/runner/shootout-extended/bin/Debug/shootout-extended.pdb
+/home/runner/shootout-extended/bin/Debug/SFD.GameScriptInterface.dll
+/home/runner/shootout-extended/obj/Debug/shootout-extended.csproj.CopyComplete
+/home/runner/shootout-extended/obj/Debug/shootout-extended.netmodule
+/home/runner/shootout-extended/obj/Debug/shootout-extended.pdb

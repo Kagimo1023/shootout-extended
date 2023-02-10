@@ -1,8 +1,0 @@
-/home/runner/BTFS-Framework/bin/Debug/BTFS_Framework.netmodule
-/home/runner/BTFS-Framework/bin/Debug/BTFS_Framework.pdb
-/home/runner/BTFS-Framework/bin/Debug/SFD.GameScriptInterface.dll
-/home/runner/BTFS-Framework/obj/Debug/BTFS_Framework.csproj.AssemblyReference.cache
-/home/runner/BTFS-Framework/obj/Debug/BTFS_Framework.csproj.CoreCompileInputs.cache
-/home/runner/BTFS-Framework/obj/Debug/BTFS_Framework.csproj.CopyComplete
-/home/runner/BTFS-Framework/obj/Debug/BTFS_Framework.netmodule
-/home/runner/BTFS-Framework/obj/Debug/BTFS_Framework.pdb

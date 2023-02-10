@@ -1,4 +1,4 @@
-namespace Shootout
+namespace BTFS
 {
     using SFDGameScriptInterface;
     using System;

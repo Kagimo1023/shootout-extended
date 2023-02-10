@@ -1,0 +1,3711 @@
+#if standalone
+using SFDGameScriptInterface;
+using System;
+public partial class ShootoutScriptInterface : GameScriptInterface
+{
+public ShootoutScriptInterface (IGame game) : base(game) {}
+#endif
+BTFS.Shootout_Extended shootout_Extended = new BTFS.Shootout_Extended();
+public void OnStartup ()
+{
+if (BTFS.BTFS_Game.CurrentMode != null) {
+BTFS.BTFS_Game.CurrentMode.StartUp(true);
+BTFS.BTFS_Game.CurrentMode.RunOnStartupPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
+BTFS.BTFS_Game.CurrentMode.RunOnUpdatePlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
+Events.UpdateCallback.Start(OnUpdate, 1);
+}
+}
+public void OnUpdate (float ms) {
+OnGameover();
+}
+public void OnGameover () {
+if(Game.IsGameOver && BTFS.BTFS_Game.CurrentMode != null)
+BTFS.BTFS_Game.CurrentMode.RunOnGameoverPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
+}
+public void AfterStartup () {
+if (BTFS.BTFS_Game.CurrentMode != null)
+BTFS.BTFS_Game.CurrentMode.RunAfterStartupPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
+}
+public void OnShutdown () {
+if (BTFS.BTFS_Game.CurrentMode != null)
+BTFS.BTFS_Game.CurrentMode.RunOnShutdownPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
+}
+}
+// namespace BTFS
+// {
+//     using SFDGameScriptInterface;
+//     using System.Collections.Generic;
+//     using System.Linq;
+//     using System;
+// }
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+using System.Collections.Generic;
+public class Callbacks
+{
+public Callback<IPlayer> OnPlayerDamage;
+public Callback<IPlayer> OnPlayerDeath;
+public Callback<IPlayer> OnPlayerKeyInput;
+public Callback<IPlayer> OnObjectCreated;
+}
+public class Callback<T>
+where T : IObject
+{
+protected Dictionary<int, List<Delegate>> _routes = new Dictionary<int, List<Delegate>> ();
+public void AddRoute (T match, MulticastDelegate target)
+{
+if (!_routes.ContainsKey (match.UniqueID))
+_routes[match.UniqueID] = new List<Delegate> ();
+_routes[match.UniqueID].Add (target);
+}
+public void RemoveRoute (T match, MulticastDelegate target)
+{
+if (!_routes.ContainsKey (match.UniqueID))
+_routes[match.UniqueID].Remove (target);
+}
+}
+public class PlayerDamageCallback : Callback<IPlayer>
+{
+public void Run (IPlayer player, PlayerDamageArgs args)
+{
+List<Delegate> route;
+if (_routes.TryGetValue (player.UniqueID, out route))
+foreach (Action<IPlayer, PlayerDamageArgs> m in route)
+m (player, args);
+}
+public void Stop (IPlayer player, PlayerDamageArgs args)
+{
+List<Delegate> route;
+if (_routes.TryGetValue (player.UniqueID, out route))
+foreach (Action<IPlayer, PlayerDamageArgs> m in route)
+m (player, args);
+}
+}
+public class UpdateCallback : Callback<IPlayer>
+{
+List <IPlayer> UpdateObjects = new List <IPlayer> ();
+public void Run (float args)
+{
+List<Delegate> route;
+foreach (IPlayer player in UpdateObjects)
+{
+if (player != null)
+{
+if (_routes.TryGetValue (player.UniqueID, out route))
+{
+foreach (Action <IPlayer, float> m in route)
+{
+m (player, args);
+}
+}
+}
+else
+{
+GameScriptInterface.Game.WriteToConsole ("Failed to update ", player.Name);
+}
+}
+}
+public void HandlePlayer (IPlayer player)
+{
+foreach (IPlayer plr in UpdateObjects)
+{
+if (plr == player)
+{
+return;
+}
+}
+if (UpdateObjects.Contains (player) == false)
+{
+//GameScriptInterface.Game.WriteToConsole (player.Name + " was add to Update cycle!");
+UpdateObjects.Add (player);
+}
+else
+{
+return;
+}
+}
+}
+public class PlayerDeathCallback : Callback<IPlayer>
+{
+public void Run (IPlayer player, PlayerDeathArgs args)
+{
+List<Delegate> route;
+if (_routes.TryGetValue (player.UniqueID, out route))
+foreach (Action<IPlayer, PlayerDeathArgs> m in route)
+m (player, args);
+}
+}
+public class PlayerKeyInputCallback : Callback<IPlayer>
+{
+public void Run (IPlayer player, VirtualKeyInfo[] args)
+{
+List<Delegate> route;
+if (_routes.TryGetValue (player.UniqueID, out route))
+foreach (Action<IPlayer, VirtualKeyInfo[]> m in route)
+m (player, args);
+}
+}
+}
+namespace BTFS
+{
+using System;
+using SFDGameScriptInterface;
+public partial class Character
+{
+Random random = new Random();
+IUser User;
+IPlayer Player;
+IPlayer OldPlayer;
+IProfile Profile = new IProfile();
+PlayerModifiers Modifiers = new PlayerModifiers();
+// CharacterTeam Team;
+#region Character_Data
+string[] Description = null;
+Skill[] Skills = null;
+// IProfile[] ProfilePacks = null;
+WeaponItem[] Weapons = null;
+#endregion
+#region char_modifiers
+protected float _corpse_health = 100;
+#endregion
+#region char_options
+string _name = "Unnamed";
+float _time_on_spawn = 0;
+int _uniqueID = -1;
+int _dead_counter = 0;
+CameraFocusMode _focus_mode;
+bool _on_start = true;
+bool _hide_name = false;
+bool _hide_status = false;
+bool _wasSpawn = false;
+bool _showDialogueOnSpawn = true;
+bool _showCharDescription = true;
+bool _dead_spawn = false;
+PredefinedAIType _predefinedAIType = PredefinedAIType.None;
+#endregion
+public Character(bool OnStart,
+bool ShowNickname,
+bool ShowStatusBar,
+string Name,
+string[] Description,
+IProfile Profile,
+CameraFocusMode Mode,
+PlayerModifiers Modifiers,
+WeaponItem[] Weapons,
+Skill[] Skills,
+int CorpseHealth = 100,
+bool DeadOnSpawn = false)
+{
+SetOnStartSpawn(OnStart);
+SetProfile(Profile);
+SetName(Name);
+SetCameraFocus(Mode);
+SetNametagVisible(ShowNickname);
+SetStatusBarVisible(ShowStatusBar);
+SetCharDescription(Description);
+SetPackModifiers(Modifiers);
+SetWeapons(Weapons);
+SetSkills(Skills);
+SetDeadOnSpawn(DeadOnSpawn);
+SetCorpseHealth(CorpseHealth);
+}
+public void OnCreateCharacter()
+{
+UpdateModifiers();
+UpdateProfile();
+HandleCameraFocus();
+HandleNametagVisible();
+HandleStatusBarVisible();
+HandleModifiers();
+HandleProfile();
+ApplySkills(Skills);
+ShowCharDescription(_showCharDescription);
+ShowCharDialogue(_showDialogueOnSpawn);
+HandleAIType();
+HandleUser();
+GiveWeapons();
+HandleDeadOnSpawn();
+_wasSpawn = true;
+}
+public void SetUser(IUser user) { User = user; }
+public void SetProfile(IProfile profile) { Profile = profile; }
+public void SetStatusBarVisible(bool hide_status) { _hide_status = hide_status; }
+public void SetNametagVisible(bool hide_name) { _hide_name = hide_name; }
+public void SetCorpseHealth(float corpse_health) { _corpse_health = corpse_health; }
+public void SetCameraFocus(CameraFocusMode focus_mode) { _focus_mode = focus_mode; }
+public void SetTimeOnSpawn(float time) { _time_on_spawn = time; }
+public void SetWeapons(WeaponItem[] weapons) { Weapons = weapons; }
+public void SetPlayer(IPlayer player) { Player = player; }
+public void SetSkills(Skill[] skills) { Skills = skills; }
+public void SetOnStartShowDescription(bool show) { _showCharDescription = show; }
+public void SetOnStartSpawn(bool spawn) { _on_start = spawn; }
+public void CreateCharDialogue(Color color, float duration) { GameScriptInterface.Game.CreateDialogue(GetName(), color, GetPlayer(), "", duration, false); }
+public void SetAIType(PredefinedAIType predefinedAIType) { _predefinedAIType = predefinedAIType; }
+public void SetUniqueID(int id) { _uniqueID = id; }
+public void SetName(string name) { _name = name; }
+public void SetOldPlayer(IPlayer player) { OldPlayer = player; }
+public void SetDeadOnSpawn(bool dead_spawn) { _dead_spawn = dead_spawn; }
+public void SetCharDescription(params string[] char_description) { this.Description = char_description; }
+public void SetOnStartShowDialogue(bool show) { _showDialogueOnSpawn = show; }
+public void SetPackModifiers(PlayerModifiers modifiers) { Modifiers = modifiers; }
+public void HandleStatusBarVisible() { Player.SetStatusBarsVisible(_hide_status); }
+public void HandleNametagVisible() { Player.SetNametagVisible(_hide_name); }
+public void HandleCameraFocus() { Player.SetCameraSecondaryFocusMode(_focus_mode); }
+public void HandleAIType() { Player.SetBotBehavior(new BotBehavior(true, _predefinedAIType)); }
+public void HandleProfile() { Player.SetProfile(Profile); }
+public bool GetDeadOnSpawn() { return _dead_spawn; }
+public bool CharacterIsDead() { return GetPlayer().IsDead; }
+public bool GetOnStartShowDialogue() { return _showDialogueOnSpawn; }
+public bool GetOnStartSpawn() { return _on_start; }
+public bool WasSpawned() { return _wasSpawn; }
+public bool GetOnStartShowDescription() { return _showCharDescription; }
+public string GetName() { return _name; }
+public float GetTimeOnSpawn() { return _time_on_spawn; }
+public int GetDeadCount() { return this._dead_counter; }
+public int GetUniqueID() { return _uniqueID; }
+public PredefinedAIType GetAIType() { return _predefinedAIType; }
+public IPlayer GetOldPlayer() { return this.OldPlayer; }
+public IPlayer GetPlayer() { return Player; }
+public PlayerModifiers GetModifiers() { return this.Modifiers; }
+public IUser GetUser() { return this.User; }
+public Skill[] GetSkills() { return Skills; }
+//Base character constructor
+public Character()
+{
+this.Profile = new IProfile();
+this.Modifiers = new PlayerModifiers();
+}
+//Using for creating player base on Character class
+public IPlayer CreateCharacter(Vector2 position)
+{
+SetPlayer(GameScriptInterface.Game.CreatePlayer(position));
+SetUniqueID(GetPlayer().UniqueID);
+OnCreateCharacter();
+return Player;
+}
+public void HandleModifiers()
+{
+Player.SetModifiers(Modifiers);
+Player.SetCorpseHealth(_corpse_health);
+}
+public void HandleDeadOnSpawn()
+{
+if (_dead_spawn == true)
+Player.Kill();
+}
+public void HandleUser()
+{
+Player.SetUser(User);
+if (BTFS_Game.BotsSupport && User.IsBot)
+{
+PredefinedAIType predefinedAIType = User.BotPredefinedAIType;
+Player.SetBotBehavior(new BotBehavior(true, predefinedAIType));
+}
+}
+//Send to user description about character
+public void ShowCharDescription(bool show)
+{
+if (show && Description == null && User != null)
+BTFS_Game.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
+if (show && Description != null && User != null)
+{
+BTFS_Game.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
+BTFS_Game.SendMessageToPlayer(User, Color.Green, Description);
+}
+}
+public void ShowCharDialogue(bool show)
+{
+if (show == true)
+CreateCharDialogue(Color.Red, 2000);
+}
+public void ApplySkills(Skill[] skills)
+{
+foreach (Skill s in skills)
+{
+s.SetCallbacks(BTFS_Game.GetCallbacks());
+Player.Apply(s);
+}
+}
+public void GiveWeapons()
+{
+if (Weapons == null)
+return;
+foreach (WeaponItem weapon in Weapons)
+Player.GiveWeaponItem(weapon);
+}
+public void GiveWeapons(WeaponItem[] weapons)
+{
+foreach (WeaponItem weapon in weapons)
+Player.GiveWeaponItem(weapon);
+}
+public IProfile CreateProfile(Gender gender,
+IProfileClothingItem skin,
+IProfileClothingItem head,
+IProfileClothingItem chestover,
+IProfileClothingItem chestunder,
+IProfileClothingItem hands,
+IProfileClothingItem waist,
+IProfileClothingItem legs,
+IProfileClothingItem feet,
+IProfileClothingItem accesory)
+{
+var profile = new IProfile()
+{
+Name = _name,
+Gender = gender,
+Skin = skin,
+Head = head,
+ChestOver = chestover,
+ChestUnder = chestunder,
+Hands = hands,
+Waist = waist,
+Legs = legs,
+Feet = feet,
+Accesory = accesory,
+};
+return profile;
+}
+public void UpdateProfile()
+{
+Profile = CreateProfile(Profile.Gender,
+Profile.Skin,
+Profile.Head,
+Profile.ChestOver,
+Profile.ChestUnder,
+Profile.Hands,
+Profile.Waist,
+Profile.Legs,
+Profile.Feet,
+Profile.Accesory);
+}
+public void UpdateModifiers()
+{
+Modifiers = CreateModifiers(Modifiers.MaxHealth,
+Modifiers.MaxEnergy,
+Modifiers.CurrentHealth,
+Modifiers.CurrentEnergy,
+Modifiers.EnergyConsumptionModifier,
+Modifiers.ExplosionDamageTakenModifier,
+Modifiers.ProjectileDamageTakenModifier,
+Modifiers.ProjectileCritChanceTakenModifier,
+Modifiers.FireDamageTakenModifier,
+Modifiers.MeleeDamageTakenModifier,
+Modifiers.ImpactDamageTakenModifier,
+Modifiers.ProjectileDamageDealtModifier,
+Modifiers.ProjectileCritChanceDealtModifier,
+Modifiers.MeleeDamageDealtModifier,
+Modifiers.MeleeForceModifier,
+Modifiers.MeleeStunImmunity,
+Modifiers.CanBurn,
+Modifiers.RunSpeedModifier,
+Modifiers.SprintSpeedModifier,
+Modifiers.EnergyRechargeModifier,
+Modifiers.SizeModifier,
+Modifiers.InfiniteAmmo,
+Modifiers.ItemDropMode);
+}
+public PlayerModifiers CreateModifiers(int max_health,
+int max_energy,
+float current_health,
+float current_energy,
+float energy_consumption,
+float explosion_damage_taken,
+float projectile_damage_taken,
+float projectile_crit_chance_taken,
+float fire_damage_taken,
+float melee_damage_taken,
+float impact_damage_taken,
+float projectile_damage_dealt,
+float projectile_crit_chance_dealt,
+float melee_damage_dealt,
+float melee_force,
+int melee_stun_immunity,
+int can_burn,
+float run_speed,
+float sprint_speed,
+float energy_recharge,
+float size_modifier,
+int infinite_ammo,
+int item_drop)
+{
+var modifiers = new PlayerModifiers()
+{
+MaxHealth = max_health,
+MaxEnergy = max_energy,
+CurrentHealth = current_health,
+CurrentEnergy = current_energy,
+EnergyConsumptionModifier = energy_consumption,
+ExplosionDamageTakenModifier = explosion_damage_taken,
+ProjectileDamageTakenModifier = projectile_damage_taken,
+ProjectileCritChanceTakenModifier = projectile_crit_chance_taken,
+FireDamageTakenModifier = fire_damage_taken,
+MeleeDamageTakenModifier = melee_damage_taken,
+ImpactDamageTakenModifier = impact_damage_taken,
+ProjectileDamageDealtModifier = projectile_damage_dealt,
+ProjectileCritChanceDealtModifier = projectile_crit_chance_dealt,
+MeleeDamageDealtModifier = melee_damage_dealt,
+MeleeForceModifier = melee_force,
+MeleeStunImmunity = melee_stun_immunity,
+CanBurn = can_burn,
+RunSpeedModifier = run_speed,
+SprintSpeedModifier = sprint_speed,
+EnergyRechargeModifier = energy_recharge,
+SizeModifier = size_modifier,
+InfiniteAmmo = infinite_ammo,
+ItemDropMode = item_drop
+};
+return modifiers;
+}
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System.Linq;
+using System;
+public abstract class CommandShell
+{
+// private string CommandName;
+// private string CommandDescription;
+// public enum CanOnly
+// {
+//     User,
+//     Moderator,
+//     Host
+// }
+// private CanOnly CurrentType;
+// public void SetCommandName (string CommandName)
+// {
+//     this.CommandName = CommandName;
+// }
+// public string GetCommandName ()
+// {
+//     return CommandName;
+// }
+// public abstract void RunCommand ();
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+using System.Text;
+namespace Modes
+{
+public class Default : Mode
+{
+public Default(string Name = "Default Mode", bool Enable = true) : base(Name, Enable)
+{
+}
+public override void StartUp(bool Enable)
+{
+if (Enable == true)
+{
+SetPlugins(Modes.Plugins.List.Enabled);
+BTFS_Game.OnStartMessages(string.Format("{0} {1}", Shootout_Extended.Name, Shootout_Extended.Version, Shootout_Extended.Features), Color.Cyan, 5000);
+BTFS_Game.InitializeCallbacks();
+BTFS_Game.random.Shuffle(Characters.List.Playable); // Shuffle characters list
+BTFS_Game.SetSpawnPoints("SpawnPlayer");
+GenerateCharacters(Characters.List.Playable);
+}
+}
+public override bool CheckSettings(object[] Settings)
+{
+throw new System.NotImplementedException();
+}
+private void GenerateCharacters(Character[] characters)
+{
+// GameScriptInterface.Game.ShowChatMessage("HERE");
+int id = 0;
+int[] spw = Global.GenerateRandomArrayNonDuplicate(BTFS_Game.SpawnPoints.Count);
+foreach (Character character in characters)
+{
+if (id < BTFS_Game.Users.Length)
+{
+character.SetOldPlayer(GameScriptInterface.Game.GetActiveUsers()[BTFS_Game.Users[id]].GetPlayer());
+character.GetOldPlayer().Remove();
+character.SetUser(GameScriptInterface.Game.GetActiveUsers()[BTFS_Game.Users[id]]);
+if (id < BTFS_Game.SpawnPoints.Count)
+{
+character.CreateCharacter(BTFS_Game.GetSpawnPoint(spw[id]));
+}
+id++;
+}
+}
+}
+}
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters
+{
+public class List
+{
+public static Character[] Playable = {
+new Character (true, false, false, "Brute", Data.Descriptions.Brute, Data.Profiles.Brute, CameraFocusMode.Ignore, Data.Modifiers.Brute,      Data.Weapons.Brute, Data.Skills.Brute),
+new Character (true, false, false, "Coleoptera", Data.Descriptions.Coleoptera, Data.Profiles.Coleoptera, CameraFocusMode.Ignore, Data.Modifiers.Coleoptera, Data.Weapons.Coleoptera, Data.Skills.Coleoptera),
+new Character (true, false, false, "Critman",    Data.Descriptions.Critman,    Data.Profiles.Critman, CameraFocusMode.Ignore, Data.Modifiers.Critman, Data.Weapons.Critman, Data.Skills.Critman),
+new Character (true, false, false, "Cursed",     Data.Descriptions.Cursed,     Data.Profiles.Cursed, CameraFocusMode.Ignore, Data.Modifiers.Cursed, Data.Weapons.Cursed, Data.Skills.Cursed),
+new Character (true, false, false, "Exploder",   Data.Descriptions.Exploder,   Data.Profiles.Exploder, CameraFocusMode.Ignore, Data.Modifiers.Exploder, Data.Weapons.Exploder, Data.Skills.Exploder),
+new Character (true, false, false, "Mauler",     Data.Descriptions.Mauler,     Data.Profiles.Mauler, CameraFocusMode.Ignore, Data.Modifiers.Mauler, Data.Weapons.Mauler, Data.Skills.Mauler),
+new Character (true, false, false, "Soldier",    Data.Descriptions.Soldier,    Data.Profiles.Soldier, CameraFocusMode.Ignore, Data.Modifiers.Soldier, Data.Weapons.Soldier, Data.Skills.Soldier),
+new Character (true, false, false, "Thief",      Data.Descriptions.Thief,      Data.Profiles.Thief, CameraFocusMode.Ignore, Data.Modifiers.Thief,      Data.Weapons.Thief, Data.Skills.Thief),
+new Character (true, false, false, "Virus",      Data.Descriptions.Virus,      Data.Profiles.Virus, CameraFocusMode.Ignore, Data.Modifiers.Virus,      Data.Weapons.Virus, Data.Skills.Virus)
+};
+public static Character[] NonSpawnCharacter = {
+new Character (true, false, false, "Blattodea", Data.Descriptions.Coleoptera, Data.Profiles.Coleoptera, CameraFocusMode.Ignore, Data.Modifiers.Coleoptera, Data.Weapons.Coleoptera, Data.Skills.Coleoptera),
+};
+}
+}
+}
+namespace BTFS
+{
+namespace Modes.Characters.Data
+{
+public static class Descriptions
+{
+public static string [] Coleoptera = {
+"Coleoptera: very balanced character",
+"Have a bonus defence and deal reduced",
+"damage to another players."
+};
+public static string [] Brute = {
+"Brute: very strong on melee but very",
+"slow and not a good shooter. Reduce damage",
+"from fall and another impact damage."
+};
+public static string [] Critman = {
+"Critman: huge crit damage if using ranged weapon",
+"Low energy and vulnerable to fire.",
+"Keep away from fire like a lava!"
+};
+public static string [] Cursed = {
+"Cursed: very good with ranged weapon.",
+"High energy regeneration (Run marathons)",
+"Critical damage don't work on him",
+"Get reduced damage from fall.",
+"Memento mori!"
+};
+public static string [] Exploder = {
+"Exploder: Doesn't give a shit about explosions.",
+"Get increased damage from projectiles!",
+"Reduced damage from fire",
+"BIG EXPLOSION ON DEATH!"
+};
+public static string [] Mauler = {
+"Mauler: very good melee fighter!",
+"Bad with any ranged weapon. (Reduced damage)",
+"Saves any damage by opponents and convert it's to",
+"Melee damage bonus. Main weapon - Katana!",
+"With katana you can use some skills!"
+};
+public static string [] Soldier = {
+"Soldier: Very good with ranged weapon! But very bad in melee!",
+"Vulnerable to melee damage",
+"Reduced damage from explosions",
+"Reduced damage from projectiles!",
+"TIP: If you want try to fight in melee -> you will die! (9000%)"
+};
+public static string [] Thief = {
+"Thief: Very fast mf'er. But very weak!",
+"Reduced max health!",
+"By taking any damage he become smaller!",
+"By taking any damage he run fasta!",
+"TIP: You can farm speed by self-immolation!"
+};
+public static string [] Virus = {
+"Virus: Very weak character. But...",
+"Can resurrect! Just wait 10 sec's.",
+"Can passively regenerate (1.25 hp for 0.75 sec)",
+"Reduced max health"
+};
+}
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters.Data
+{
+public static class Modifiers
+{
+public static PlayerModifiers Coleoptera = new PlayerModifiers ()
+{
+MaxHealth = 130,
+MaxEnergy = -1,
+CurrentHealth = 130,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = 0.5f,
+ProjectileDamageTakenModifier = 0.5f,
+ProjectileCritChanceTakenModifier = 0.5f,
+FireDamageTakenModifier = 0.5f,
+MeleeDamageTakenModifier = 0.5f,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = 0.5f,
+ProjectileCritChanceDealtModifier = 0.5f,
+MeleeDamageDealtModifier = 0.5f,
+MeleeForceModifier = 0.5f,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = -1,
+SprintSpeedModifier = -1,
+EnergyRechargeModifier = -1,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Brute = new PlayerModifiers ()
+{
+MaxHealth = 130,
+MaxEnergy = -1,
+CurrentHealth = 130,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = 2,
+ExplosionDamageTakenModifier = -1,
+ProjectileDamageTakenModifier = -1,
+ProjectileCritChanceTakenModifier = -1,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = 0.1f,
+ProjectileDamageDealtModifier = 0.8f,
+ProjectileCritChanceDealtModifier = -1,
+MeleeDamageDealtModifier = 2,
+MeleeForceModifier = 1.05f,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = 0.75f,
+SprintSpeedModifier = 0.75f,
+EnergyRechargeModifier = 0.5f,
+SizeModifier = 1.25f,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Critman = new PlayerModifiers ()
+{
+MaxHealth = -1,
+MaxEnergy = -1,
+CurrentHealth = -1,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = 3,
+ExplosionDamageTakenModifier = 5,
+ProjectileDamageTakenModifier = -1,
+ProjectileCritChanceTakenModifier = -1,
+FireDamageTakenModifier = 5,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = 0.9f,
+ProjectileCritChanceDealtModifier = 25,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = -1,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = 1.1f,
+SprintSpeedModifier = -1,
+EnergyRechargeModifier = -1,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Cursed = new PlayerModifiers ()
+{
+MaxHealth = -1,
+MaxEnergy = -1,
+CurrentHealth = -1,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = -1,
+ProjectileDamageTakenModifier = -1,
+ProjectileCritChanceTakenModifier = 0,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = 40,
+ProjectileDamageDealtModifier = 1.8f,
+ProjectileCritChanceDealtModifier = -1,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = -1,
+MeleeStunImmunity = 0,
+CanBurn = -1,
+RunSpeedModifier = -1,
+SprintSpeedModifier = -1,
+EnergyRechargeModifier = 10,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Exploder = new PlayerModifiers ()
+{
+MaxHealth = -1,
+MaxEnergy = -1,
+CurrentHealth = -1,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = 0.1f,
+ProjectileDamageTakenModifier = 2,
+ProjectileCritChanceTakenModifier = 0.75f,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = -1,
+ProjectileCritChanceDealtModifier = -1,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = -1,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = -1,
+SprintSpeedModifier = -1,
+EnergyRechargeModifier = -1,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Mauler = new PlayerModifiers ()
+{
+MaxHealth = 120,
+MaxEnergy = -1,
+CurrentHealth = 120,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = -1,
+ProjectileDamageTakenModifier = -1,
+ProjectileCritChanceTakenModifier = 0.7f,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = 0.3f,
+ProjectileCritChanceDealtModifier = 0.5f,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = 1.1f,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = -1,
+SprintSpeedModifier = 1.1f,
+EnergyRechargeModifier = -1,
+SizeModifier = 1.05f,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Soldier = new PlayerModifiers ()
+{
+MaxHealth = 110,
+MaxEnergy = -1,
+CurrentHealth = 110,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = 0.5f,
+ProjectileDamageTakenModifier = 0.3f,
+ProjectileCritChanceTakenModifier = -1,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = 2.5f,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = 1.5f,
+ProjectileCritChanceDealtModifier = -1,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = -1,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = -1,
+SprintSpeedModifier = -1,
+EnergyRechargeModifier = -1,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Thief = new PlayerModifiers ()
+{
+MaxHealth = 80,
+MaxEnergy = 200,
+CurrentHealth = 80,
+CurrentEnergy = 200,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = -1,
+ProjectileDamageTakenModifier = -1,
+ProjectileCritChanceTakenModifier = 1.5f,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = -1,
+ProjectileCritChanceDealtModifier = 1.2f,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = -1,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = 1.05f,
+SprintSpeedModifier = 1.05f,
+EnergyRechargeModifier = -1,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+public static PlayerModifiers Virus = new PlayerModifiers ()
+{
+MaxHealth = 75,
+MaxEnergy = -1,
+CurrentHealth = 75,
+CurrentEnergy = -1,
+EnergyConsumptionModifier = -1,
+ExplosionDamageTakenModifier = -1,
+ProjectileDamageTakenModifier = -1,
+ProjectileCritChanceTakenModifier = 1,
+FireDamageTakenModifier = -1,
+MeleeDamageTakenModifier = -1,
+ImpactDamageTakenModifier = -1,
+ProjectileDamageDealtModifier = -1,
+ProjectileCritChanceDealtModifier = -1,
+MeleeDamageDealtModifier = -1,
+MeleeForceModifier = -1,
+MeleeStunImmunity = -1,
+CanBurn = -1,
+RunSpeedModifier = -1,
+SprintSpeedModifier = 1.2f,
+EnergyRechargeModifier = -1,
+SizeModifier = -1,
+InfiniteAmmo = -1,
+ItemDropMode = -1
+};
+}
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters.Data
+{
+public static class Profiles
+{
+// All profiles was generated with NearHuscarl utility https://superfighters.vercel.app/profile
+public static IProfile Coleoptera = new IProfile ()
+{
+Name = "Coleoptera",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem ("Zombie", ""),
+Head = new IProfileClothingItem ("AviatorHat2", "ClothingDarkYellow", "ClothingLightYellow"),
+ChestOver = new IProfileClothingItem ("StuddedVest", "ClothingDarkYellow", "ClothingDarkYellow"),
+ChestUnder = new IProfileClothingItem ("BodyArmor", "ClothingDarkYellow"),
+Hands = new IProfileClothingItem ("SafetyGlovesBlack", "ClothingOrange"),
+Waist = new IProfileClothingItem ("CombatBelt", "ClothingOrange"),
+Legs = new IProfileClothingItem ("TornPants", "ClothingDarkYellow"),
+Feet = new IProfileClothingItem ("RidingBootsBlack", "ClothingOrange"),
+Accesory = new IProfileClothingItem ("GasMask2", "ClothingDarkYellow", "ClothingLightYellow")
+};
+public static IProfile Brute = new IProfile ()
+{
+Name = "Brute",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Normal", "Skin4", "ClothingLightGreen"),
+Waist = new IProfileClothingItem("CombatBelt", "ClothingRed"),
+Legs = new IProfileClothingItem("Pants", "ClothingDarkGray"),
+Feet = new IProfileClothingItem("BootsBlack", "ClothingBrown"),
+Accesory = new IProfileClothingItem("RestraintMask", "ClothingRed")
+};
+public static IProfile Critman = new IProfile ()
+{
+Name = "Critman",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem ("Tattoos", "Skin3", "ClothingDarkRed"),
+ChestOver = new IProfileClothingItem ("KevlarVest", "ClothingDarkRed"),
+ChestUnder = new IProfileClothingItem ("LumberjackShirt2", "ClothingDarkGray", "ClothingDarkGray"),
+Hands = new IProfileClothingItem ("FingerlessGlovesBlack", "ClothingDarkGray"),
+Waist = new IProfileClothingItem ("Belt", "ClothingDarkGray", "ClothingDarkRed"),
+Legs = new IProfileClothingItem ("PantsBlack", "ClothingDarkGray"),
+Feet = new IProfileClothingItem ("Boots", "ClothingDarkGray"),
+Accesory = new IProfileClothingItem ("Balaclava", "ClothingDarkGray")
+};
+public static IProfile Cursed = new IProfile ()
+{
+Name = "Cursed",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem ("Normal", "Skin5", "ClothingLightGreen"),
+ChestOver = new IProfileClothingItem ("VestBlack", "ClothingDarkRed", "ClothingDarkGray"),
+ChestUnder = new IProfileClothingItem ("SleevelessShirt", "ClothingDarkGray"),
+Hands = new IProfileClothingItem ("Gloves", "ClothingDarkGray"),
+Waist = new IProfileClothingItem ("AmmoBeltWaist", "ClothingRed"),
+Legs = new IProfileClothingItem ("CamoPants", "ClothingDarkGray", "ClothingGray"),
+Feet = new IProfileClothingItem("ShoesBlack", "ClothingBrown"),
+Accesory = new IProfileClothingItem ("StuddedLeatherMask", "ClothingDarkRed")
+};
+public static IProfile Exploder = new IProfile ()
+{
+Name = "Exploder",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Normal", "Skin3", "ClothingLightGreen"),
+Head = new IProfileClothingItem("FLDisguise", "ClothingDarkGray", "ClothingLightGray"),
+ChestOver = new IProfileClothingItem("GrenadeBelt", ""),
+ChestUnder = new IProfileClothingItem("LumberjackShirt2", "ClothingDarkGreen", "ClothingGreen"),
+Hands = new IProfileClothingItem("Gloves", "ClothingGray"),
+Waist = new IProfileClothingItem("SatchelBelt", "ClothingGray"),
+Legs = new IProfileClothingItem("StripedPants", "ClothingBlue"),
+Feet = new IProfileClothingItem("BootsBlack", "ClothingGray"),
+Accesory = new IProfileClothingItem("Balaclava", "ClothingDarkRed")
+};
+public static IProfile Mauler = new IProfile ()
+{
+Name = "Mauler",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Normal", "Skin3", "ClothingLightGreen"),
+Head = new IProfileClothingItem("MetroLawGasMask", "ClothingDarkGray", "ClothingLightRed"),
+ChestOver = new IProfileClothingItem("Robe", "ClothingDarkGray"),
+ChestUnder = new IProfileClothingItem("StuddedLeatherSuit", "ClothingDarkGray"),
+Hands = new IProfileClothingItem("SafetyGlovesBlack", "ClothingDarkGray"),
+Legs = new IProfileClothingItem("PantsBlack", "ClothingDarkGray"),
+Feet = new IProfileClothingItem("RidingBootsBlack", "ClothingDarkGray")
+};
+public static IProfile Soldier = new IProfile ()
+{
+Name = "Soldier",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Normal", "Skin3", "ClothingLightGreen"),
+Head = new IProfileClothingItem("BaseballCap", "ClothingBlue", "ClothingDarkRed"),
+ChestOver = new IProfileClothingItem("KevlarVest", "ClothingDarkGray"),
+ChestUnder = new IProfileClothingItem("LeatherJacket", "ClothingBlue", "ClothingLightGray"),
+Hands = new IProfileClothingItem("GlovesBlack", "ClothingBrown"),
+Legs = new IProfileClothingItem("Pants", "ClothingBlue"),
+Feet = new IProfileClothingItem("BootsBlack", "ClothingBrown"),
+Accesory = new IProfileClothingItem("Balaclava", "ClothingDarkRed")
+};
+public static IProfile Thief = new IProfile ()
+{
+Name = "Thief",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Normal", "Skin3", "ClothingLightGreen"),
+Head = new IProfileClothingItem("AviatorHat2", "ClothingYellow", "ClothingLightYellow"),
+ChestOver = new IProfileClothingItem("KevlarVest", "ClothingDarkGray"),
+ChestUnder = new IProfileClothingItem("Shirt", "ClothingGray"),
+Hands = new IProfileClothingItem("GlovesBlack", "ClothingYellow"),
+Waist = new IProfileClothingItem("Sash", "ClothingGray"),
+Legs = new IProfileClothingItem("Pants", "ClothingGray"),
+Feet = new IProfileClothingItem("RidingBootsBlack", "ClothingYellow"),
+Accesory = new IProfileClothingItem("GasMask2", "ClothingYellow", "ClothingLightYellow")
+};
+public static IProfile Virus = new IProfile ()
+{
+Name = "Virus",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Zombie", ""),
+ChestOver = new IProfileClothingItem("VestBlack", "ClothingDarkYellow", "ClothingDarkGray"),
+ChestUnder = new IProfileClothingItem("ShirtWithTie", "ClothingDarkYellow", "ClothingDarkRed"),
+Hands = new IProfileClothingItem("SafetyGloves", "ClothingDarkRed"),
+Waist = new IProfileClothingItem("None", "None"),
+Legs = new IProfileClothingItem("TornPants", "ClothingDarkYellow"),
+Feet = new IProfileClothingItem("Shoes", "ClothingDarkRed"),
+Accesory = new IProfileClothingItem("None", "None")
+};
+public static IProfile Blattodea = new IProfile()
+{
+Name = "Blattodea",
+Gender = Gender.Male,
+Skin = new IProfileClothingItem("Normal", "Skin1", "ClothingDarkBrown"),
+Head = new IProfileClothingItem("AviatorHat2", "ClothingDarkBrown", "ClothingLightGray"),
+ChestOver = new IProfileClothingItem("StuddedJacket", "ClothingDarkBrown", "ClothingBrown"),
+ChestUnder = new IProfileClothingItem("BodyArmor", "ClothingDarkBrown"),
+Hands = new IProfileClothingItem("SafetyGloves", "ClothingDarkBrown"),
+Waist = new IProfileClothingItem("CombatBelt", "ClothingDarkBrown"),
+Legs = new IProfileClothingItem("CamoPants", "ClothingBrown", "ClothingDarkBrown"),
+Feet = new IProfileClothingItem("RidingBootsBlack", "ClothingBrown"),
+Accesory = new IProfileClothingItem("GasMask", "ClothingBrown", "ClothingLightGray"),
+};
+}
+}
+}
+namespace BTFS
+{
+namespace Modes.Characters.Data
+{
+public static class Skills
+{
+public static Skill[] Coleoptera = {
+new Modes.Data.Skills.Actives.EatingObjects (50, null)
+};
+public static Skill[] Brute = {
+// new Modes.Data.Skills.Actives.ChargePunch (null, 0.5, 1.2, 5)
+};
+public static Skill[] Critman = {
+};
+public static Skill[] Cursed = {
+new Modes.Data.Skills.BodyTrap (null)
+};
+public static Skill[] Exploder = {
+new Modes.Data.Skills.Kamikaze (null, "EAT THAT'S BITCH!"),
+new Modes.Data.Skills.Actives.MineBody (50, null)
+};
+public static Skill [] Mauler = {
+new Modes.Data.Skills.DamageUp (null, 3, 0.001f),
+new Modes.Data.Skills.Actives.DevilArmor (80, null)
+};
+public static Skill[] Soldier = {
+};
+public static Skill[] Thief = {
+new Modes.Data.Skills.SpeedUp (null),
+// new Modes.Data.Skills.Compression (null),
+new Modes.Data.Skills.Actives.Steal (50, null),
+new Modes.Data.Skills.Actives.Hide (50, null, "Crate00", "Crate01", "Crate02")
+};
+public static Skill[] Virus = {
+new Modes.Data.Skills.Regeneration (null, 750, 1.25f, "TR_B"),
+new Modes.Data.Skills.Respawn (null, 10000)
+};
+}
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+namespace Modes.Characters.Data
+{
+public static class Weapons
+{
+public static WeaponItem[] Brute = {
+};
+public static WeaponItem[] Coleoptera = {
+WeaponItem.KNIFE,
+WeaponItem.MOLOTOVS
+};
+public static WeaponItem[] Critman = {
+WeaponItem.SNIPER,
+WeaponItem.SILENCEDPISTOL
+};
+public static WeaponItem[] Cursed = {
+WeaponItem.CARBINE,
+WeaponItem.SLOWMO_10
+};
+public static WeaponItem[] Exploder = {
+WeaponItem.MINES,
+WeaponItem.FLAREGUN
+};
+public static WeaponItem[] Mauler = {
+WeaponItem.KATANA
+};
+public static WeaponItem[] Soldier = {
+WeaponItem.PISTOL,
+WeaponItem.SUB_MACHINEGUN,
+WeaponItem.SHOCK_BATON
+};
+public static WeaponItem[] Thief = {
+WeaponItem.MACHINE_PISTOL,
+WeaponItem.SPEEDBOOST
+};
+public static WeaponItem[] Virus = {
+WeaponItem.KNIFE,
+WeaponItem.MOLOTOVS
+};
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+// namespace BTFS
+// {
+//     using SFDGameScriptInterface;
+//     using System.Collections.Generic;
+//     using System.Linq;
+//     using System;
+//     namespace Modes.Data
+//     {
+//         // public class BTFS_Version : CommandShell
+//         // {
+//         //     public BTFS_Version(string CommandName = "BTFS_V",
+//         //                           UserType ut = UserType.Host,
+//         //                           string Description = "Current version of BTFS",
+//         //                           params object[] Arguments) : base(CommandName, ut, Description, Arguments)
+//         //     {
+//         //     }
+//         //     protected override void RunCommand()
+//         //     {
+//         //         this.
+//         //     }
+//         // }
+//     }
+// }
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+// namespace BTFS
+// {
+//     using SFDGameScriptInterface;
+//     using System.Collections.Generic;
+//     using System.Linq;
+//     using System;
+//     namespace Modes.Data
+//     {
+//         // public class SpawnCharacter : CommandShell
+//         // {
+//         //     public SpawnCharacter(string CommandName = "SME_SPWN_CHR",
+//         //                           UserType ut = UserType.Host,
+//         //                           string Description = "Spawn specific character",
+//         //                           params object[] Arguments) : base(CommandName, ut, Description, Arguments)
+//         //     {
+//         //     }
+//         //     protected override void RunCommand()
+//         //     {
+//         //         IPlayer tmp = null;
+//         //     }
+//         // }
+//     }
+// }
+namespace BTFS
+{
+namespace Modes.Commands
+{
+public static class List
+{
+// public static CommandShell [] Host = {
+//     // new CommandShell
+// };
+// public static CommandShell [] Moderator = {
+//     // new CommandShell
+// };
+// public static CommandShell [] User = {
+//     // new CommandShell
+// };
+}
+}
+}
+namespace BTFS
+{
+namespace Modes.Plugins
+{
+public static class List
+{
+public static Plugin [] Enabled = {
+new Modes.Plugins.DamageAmount(),
+new Modes.Plugins.DeadList()
+};
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using System;
+namespace Modes.Plugins
+{
+public class DamageAmount : Plugin
+{
+public DamageAmount ()
+{
+this.Enable = true;
+this.Name = "Damage Amount";
+SetDescription ("Damage output plugin");
+}
+void OnPlayerDamage (IPlayer player, PlayerDamageArgs args)
+{
+if (player.IsDead)
+return;
+if (args.DamageType != PlayerDamageEventType.Fire && args.Damage >= 0.5f)
+Events.UpdateCallback.Start((x) => Game.PlayEffect ("CFTXT",player.GetWorldPosition (), "-" + (int) args.Damage), 100, 1);
+}
+public override void OnStartup ()
+{
+Events.PlayerDamageCallback.Start(OnPlayerDamage);
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System;
+namespace Modes.Plugins
+{
+public partial class DeadList : Plugin
+{
+// This plugin based on old Shootout feature (last version).
+bool StopDeanonEvent = false;
+Dictionary <IUser, string> p_RealNames = new Dictionary<IUser ,string>();
+List <string> DeanonKilledPlayers = new List <string>();
+List <string> p_WasSpawned = new List<string>();
+public DeadList ()
+{
+this.Enable = true;
+this.Name = "Dead List";
+SetDescription ("Output list of all dead players! Who dead first, lose! And he has last position in top Dead List Just try to win! And not dead!");
+}
+public override void OnStartup ()
+{
+Events.PlayerDeathCallback.Start(OnPlayerDeath);
+foreach (Character chr in Characters.List.Playable)
+{
+if (chr.WasSpawned () == true)
+p_RealNames.Add (chr.GetUser (), chr.GetUser().Name);
+}
+}
+public override void OnGameover ()
+{
+DeanonEventFunction();
+}
+public void DeanonEventFunction()
+{
+int ndp = 0;
+foreach(IPlayer plr in Game.GetPlayers())
+{
+if (plr.GetCharacter() != null && plr != null && plr.IsDead != true)
+{
+DeanonKilledPlayers.Insert(0, p_RealNames[plr.GetUser()] + "(" + plr.GetCharacter().GetName() + ")");
+ndp++;
+}
+}
+if (ndp > 1)
+StopDeanonEvent = true;
+if (StopDeanonEvent == false)
+{
+Game.ShowChatMessage("Top Dead List".ToUpper(), Color.Yellow);
+for (int i = 0; i < DeanonKilledPlayers.Count; ++i)
+{
+if(i != 0) Game.ShowChatMessage((i) + ". " + DeanonKilledPlayers[i], Color.Yellow);
+}
+StopDeanonEvent = true;
+}
+}
+public void OnPlayerDeath(IPlayer player, PlayerDeathArgs args)
+{
+string tmp;
+if (args.Killed) {
+if(player.GetCharacter() != null && player != null && player.GetUser() != null) {
+tmp = p_RealNames[player.GetUser()] + "(" + player.GetCharacter().GetName() + ")";
+if (DeanonKilledPlayers.Contains(tmp) == false)
+DeanonKilledPlayers.Insert(0, tmp);
+tmp = null;
+}
+}
+if (args.Removed) {
+if(player.GetUser() != null) {
+tmp = p_RealNames[player.GetUser()] + "(" + player.GetCharacter().GetName() + ")";
+if (DeanonKilledPlayers.Contains(tmp) == false)
+DeanonKilledPlayers.Insert(0, tmp);
+tmp = null;
+}
+}
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Reflection;
+using System;
+namespace Modes.Plugins
+{
+public class Door
+{
+public Vector2 DoorPosition { get; set; }
+private List <List<IObject>> blocksGroup = new List<List<IObject>>();
+public Door ()
+{
+IObject InvisibleBlockRoof = GameScriptInterface.Game.CreateObject("InvisibleBlock", new Vector2(0, 0));
+IObject InvisibleBlockLeftBorder = GameScriptInterface.Game.CreateObject("InvisibleBlock", new Vector2 (0,0));
+IObject InvisibleBlockRightBorder = GameScriptInterface.Game.CreateObject("InvisibleBlock", new Vector2 (28,0));
+IObject InvisibleBlockFloor = GameScriptInterface.Game.CreateObject("InvisibleBlock", new Vector2 (0,-28));
+IObjectActivateTrigger ActivateTrigger = (IObjectActivateTrigger) GameScriptInterface.Game.CreateObject("ActivateTrigger", InvisibleBlockRoof.GetWorldPosition() * 2);
+InvisibleBlockRoof.SetSizeFactor(new Point(4,0));
+InvisibleBlockFloor.SetSizeFactor(new Point(4,0));
+InvisibleBlockLeftBorder.SetSizeFactor(new Point(0,4));
+InvisibleBlockRightBorder.SetSizeFactor(new Point(0,4));
+blocksGroup.Add(new List<IObject>());
+blocksGroup[0].Add(InvisibleBlockRoof);
+blocksGroup[0].Add(InvisibleBlockFloor);
+blocksGroup[0].Add(InvisibleBlockLeftBorder);
+blocksGroup[0].Add(InvisibleBlockRightBorder);
+blocksGroup[0].Add(ActivateTrigger);
+}
+public Vector2 GetPosition ()
+{
+return DoorPosition;
+}
+public void SetNameToActivateTrigger()
+{
+foreach (List <IObject> blocks in blocksGroup)
+{
+blocks[4].CustomID = blocks[4].Name + "_" + blocksGroup.IndexOf(blocks);
+}
+}
+//             public List <IObject> GetBlocksGroup(int id)
+//             {
+//                 return
+//             }
+public IObjectActivateTrigger GetActivateTrigger()
+{
+IObjectActivateTrigger objact = null;
+foreach (List <IObject> blocks in blocksGroup)
+{
+if (blocks[4] is IObjectActivateTrigger) return objact = (IObjectActivateTrigger) blocks[4];
+}
+return objact;
+}
+public void SetPosition (Vector2 vector2)
+{
+DoorPosition = vector2;
+foreach (List <IObject> blocks in blocksGroup)
+{
+blocks[0].SetWorldPosition (DoorPosition);
+blocks[1].SetWorldPosition (blocks[0].GetWorldPosition() - new Vector2(0, 40));
+blocks[2].SetWorldPosition (blocks[0].GetWorldPosition() + new Vector2(0, -8));
+blocks[3].SetWorldPosition (blocks[0].GetWorldPosition() + new Vector2(24, -8));
+blocks[4].SetWorldPosition (blocks[0].GetWorldPosition() + new Vector2(12, -16));
+}
+}
+}
+public class DoorsGenerator : Plugin
+{
+private List <IObject> BGDoors = new List <IObject> ();
+private List <Vector2> DoorsPositions = new List <Vector2> ();
+private List <IObjectActivateTrigger> DoorsActivates = new List <IObjectActivateTrigger> ();
+private List <string> DoorsToDetect = new List <string> ();
+private List <Door> Doors = new List <Door> ();
+public DoorsGenerator (params string[] objs)
+{
+this.Enable = true;
+this.Name = "Doors Generator";
+SetDescription ("Generate doors on the maps");
+foreach (string str in objs)
+DoorsToDetect.Add(str);
+}
+void DestroyDoor (int id)
+{
+}
+void InitializeDoors()
+{
+foreach (string str in DoorsToDetect)
+{
+int c = 0;
+foreach (IObject obj in Game.GetObjectsByName(str))
+{
+obj.CustomID = obj.Name + "_" + c;
+BGDoors.Add(obj);
+c++;
+}
+}
+for (int i = 0; i < BGDoors.Count; i++)
+{
+DoorsActivates.Add((IObjectActivateTrigger) Game.CreateObject("ActivateTrigger", BGDoors[i].GetWorldPosition()));
+}
+//                 for (int i = 0; i < Doors.Count; i++)
+//                 {
+//                     Doors[i].SetPosition(new Vector2(BGDoors[i].GetWorldPosition().X, Game.GetCameraMaxArea().TopLeft.Y));
+//                 }
+int count = 0;
+foreach (IObjectActivateTrigger objact in DoorsActivates)
+{
+objact.SetEnabled(true);
+objact.SetActivateOnStartup(true);
+objact.SetHighlightObject(BGDoors[count]);
+objact.CustomID = objact.Name + "_" + count;
+count++;
+}
+}
+void GenerateDoors ()
+{
+int door_count = 0;
+int multiply = 2;
+foreach (IObject obj in BGDoors)
+{
+Doors.Add(new Door());
+if (door_count == 0)
+Doors[door_count].SetPosition (Game.GetCameraMaxArea().TopLeft + new Vector2(-10000, 0));
+else
+{
+Doors[door_count].SetPosition (new Vector2(Doors[0].GetPosition().X, Doors[0].GetPosition().Y * multiply + Doors[0].GetPosition().Y * door_count));
+multiply++;
+}
+door_count++;
+}
+for (int i = 0; i < door_count; i++)
+{
+Doors[i].SetNameToActivateTrigger();
+}
+}
+public void OnPlayerKeyInputHideIn (IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+foreach (IObjectActivateTrigger objact in DoorsActivates)
+{
+foreach (IObject obj in Game.GetObjectsByArea (objact.GetAABB ()))
+{
+if (obj is IPlayer && objact.IsEnabled)
+{
+player = (IPlayer) obj;
+if (!player.IsDead)
+{
+for (int i = 0; i < keyEvents.Length; i ++)
+{
+if (keyEvents[i].Event == VirtualKeyEvent.Pressed)
+{
+if (player.KeyPressed(VirtualKey.ACTIVATE) && !player.KeyPressed(VirtualKey.WALKING))
+{
+BTFS_Game.ShowCFTX ("HIDE", objact);
+BTFS_Game.ShowGameEffect("STM", objact);
+player.SetWorldPosition(Doors[DoorsActivates.IndexOf(objact)].GetPosition() + new Vector2(8, -8));
+}
+}
+}
+}
+}
+}
+}
+}
+public void OnPlayerKeyInputHideOut (IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+foreach (Door door in Doors)
+{
+foreach (IObject obj in Game.GetObjectsByArea (door.GetActivateTrigger ().GetAABB ()))
+{
+if (obj is IPlayer && door.GetActivateTrigger().IsEnabled)
+{
+player = (IPlayer) obj;
+if (!player.IsDead)
+{
+for (int i = 0; i < keyEvents.Length; i ++)
+{
+if (keyEvents[i].Event == VirtualKeyEvent.Pressed)
+{
+if (player.KeyPressed(VirtualKey.ACTIVATE) && player.KeyPressed(VirtualKey.WALKING))
+{
+player.SetWorldPosition(DoorsActivates[Doors.IndexOf(door)].GetWorldPosition() + new Vector2(0, -12));
+BTFS_Game.SendMessageToPlayer(player.GetUser(), Color.Magenta, string.Format("You can leave from the door on {0} {1}", VirtualKey.ACTIVATE, VirtualKey.WALKING));
+}
+}
+}
+}
+}
+}
+}
+}
+public override void OnStartup ()
+{
+Events.PlayerKeyInputCallback.Start(OnPlayerKeyInputHideIn);
+Events.PlayerKeyInputCallback.Start(OnPlayerKeyInputHideOut);
+InitializeDoors();
+GenerateDoors();
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev
+*
+T h*is file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System;
+namespace Modes.Plugins
+{
+public class Spectating : Plugin
+{
+List <IPlayer> Spectators = new List <IPlayer> ();
+List <IPlayer> FollowMode = new List <IPlayer> ();
+List <IPlayer> CanFollow = new List <IPlayer> ();
+public Spectating ()
+{
+this.Enable = true;
+this.Name = "Spectating";
+SetDescription ("Can move player camera in spectator mode!");
+SetSleepOnUpdate(200); // Set interval on update
+SetCyclesOnUpdate(0); // infinite on update!
+}
+public override void OnStartup()
+{
+IObject obj = Game.CreateObject("InvisibleBlock", new Vector2(Game.GetCameraMaxArea().BottomLeft.X, Game.GetCameraMaxArea().BottomLeft.Y + 100000));
+obj.SetSizeFactor(new Point (1000, 0));
+foreach (IPlayer player in Game.GetPlayers())
+{
+player.SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+}
+Events.PlayerDeathCallback.Start(OnPlayerDeath);
+Events.PlayerKeyInputCallback.Start(Input);
+}
+public override void OnUpdate (float ms)
+{
+foreach (IPlayer player in Game.GetPlayers())
+{
+if (!player.IsDead && !Spectators.Contains(player) && !CanFollow.Contains(player) && player.GetUser() != null)
+{
+CanFollow.Add(player);
+}
+}
+}
+public void Input(IPlayer p, VirtualKeyInfo[] keyEvents)
+{
+for(int i = 0; i < keyEvents.Length; i ++)
+if(keyEvents[i].Event == VirtualKeyEvent.Pressed && Spectators.Contains(p))
+{
+switch(keyEvents[i].Key)
+{
+case VirtualKey.AIM_RUN_RIGHT:
+if(p.GetWorldPosition().X <= Game.GetCameraMaxArea().BottomRight.X)
+{
+if (!FollowMode.Contains(p))
+{
+p.SetWorldPosition(p.GetWorldPosition() + new Vector2(20,0));
+if(p.KeyPressed(VirtualKey.SPRINT))p.SetWorldPosition(p.GetWorldPosition() + new Vector2(20,0));
+}
+}
+break;
+case VirtualKey.AIM_RUN_LEFT:
+if(p.GetWorldPosition().X >= Game.GetCameraMaxArea().BottomLeft.X)
+{
+if (!FollowMode.Contains(p))
+{
+p.SetWorldPosition(p.GetWorldPosition() + new Vector2(-20,0));
+if(p.KeyPressed(VirtualKey.SPRINT))p.SetWorldPosition(p.GetWorldPosition() + new Vector2(-20,0));
+}
+}
+break;
+case VirtualKey.ACTIVATE:
+Game.ShowChatMessage("Follow mode work in progress!", Color.Magenta, p.UserIdentifier);
+break;
+}
+}
+}
+public void OnPlayerDeath (IPlayer player, PlayerDeathArgs args)
+{
+if (args.Killed && !player.IsBot && player.GetUser() != null && !Spectators.Contains(player))
+{
+CanFollow.Remove(player);
+string Name = player.GetUser().Name;
+IUser user = player.GetUser();
+Vector2 p_pos = player.GetWorldPosition();
+IPlayer spectator = Game.CreatePlayer(new Vector2(p_pos.X, Game.GetCameraMaxArea().BottomLeft.Y + 100010));
+spectator.SetInputMode(PlayerInputMode.ReadOnly);
+spectator.SetCameraSecondaryFocusMode(CameraFocusMode.Ignore);
+spectator.SetNametagVisible(false);
+spectator.SetBotName(Name);
+spectator.SetUser(user);
+Spectators.Add(spectator);
+Game.ShowChatMessage(string.Format("Welcome to spectator mode! You can manually scroll camera when you are dead! Just press {0}, {1} for change camera position. For follow player press {2}!", VirtualKey.AIM_RUN_LEFT, VirtualKey.AIM_RUN_RIGHT, VirtualKey.ACTIVATE), Color.Magenta, spectator.UserIdentifier);
+}
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System.Linq;
+using System;
+namespace Modes.Data
+{
+public abstract class Active : Skill
+{
+protected readonly string[] templateSkillStrings =
+{
+"I DONT HAVE ENERGY!"
+};
+protected List<object> _conditions;
+protected float _energy_price;
+protected VirtualKey[] _keys;
+public override void Activate(IPlayer player)
+{
+SetOwner(player);
+_cb.OnPlayerKeyInput.AddRoute(player, (Action<IPlayer, VirtualKeyInfo[]>)ActivateSkill);
+}
+public Active(float EnergyPrice, Callbacks cb) : base(cb)
+{
+_energy_price = EnergyPrice;
+}
+public void SetEnergyPrice(float energy_price)
+{
+_energy_price = energy_price;
+}
+public bool CheckEnergy()
+{
+if (GetEnergyPrice() < GetCurrentEnergy())
+{
+return true;
+}
+else
+{
+return false;
+}
+}
+public virtual void ActivateSkill(IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+for (int i = 0; i < keyEvents.Length; i++)
+{
+if (keyEvents[i].Event == VirtualKeyEvent.Pressed)
+{
+if (CheckKeysOnPressed(GetKeys(), player))
+{
+if (CheckEnergy())
+{
+TakeEnergy();
+}
+}
+}
+}
+}
+public bool CheckKeysOnPressed (VirtualKey [] keys, IPlayer player)
+{
+List <bool> conditions = new List <bool> ();
+foreach (VirtualKey key in keys)
+{
+if (player.KeyPressed(key))
+{
+conditions.Add (true);
+}
+else
+{
+conditions.Add (false);
+}
+}
+foreach (bool cond in conditions)
+{
+if (cond == false) return false;
+}
+conditions.Clear();
+return true;
+}
+public float GetCurrentEnergy()
+{
+return GetModifiers().CurrentEnergy;
+}
+public float GetEnergyPrice()
+{
+return _energy_price;
+}
+public void SetKeys(params VirtualKey[] keys)
+{
+_keys = keys;
+}
+public VirtualKey[] GetKeys()
+{
+return _keys;
+}
+public abstract void TakeEnergy();
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills.Actives
+{
+public class DevilArmor : Active
+{
+bool k_DevilArmor = false;
+bool s_DevilArmor = false;
+VirtualKey[] _key_binds =
+{
+VirtualKey.WALKING,
+VirtualKey.BLOCK
+};
+PlayerModifiers buffer;
+public DevilArmor(float energy_price, Callbacks cb) : base(energy_price, cb)
+{
+SetKeys(_key_binds);
+SetEnergyPrice(energy_price);
+}
+void OnPlayerKeyInput(IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+for (int i = 0; i < keyEvents.Length; i++)
+{
+if (keyEvents[i].Event == VirtualKeyEvent.Pressed)
+{
+if (player.CurrentWeaponDrawn == WeaponItemType.Melee &&
+(player.CurrentMeleeWeapon).WeaponItem == WeaponItem.KATANA &&
+player.IsDead == false &&
+player.KeyPressed(GetKeys()[0]) &&
+player.KeyPressed(GetKeys()[1]) &&
+GetModifiers().CurrentHealth <= 30)
+{
+if (k_DevilArmor == false)
+{
+TakeEnergy();
+return;
+}
+else
+{
+BTFS_Game.ShowGameEffect("STM", player);
+BTFS_Game.ShowCFTX("I CAN'T DO THIS AGAIN!", GetOwner());
+return;
+}
+}
+}
+}
+}
+public override void TakeEnergy()
+{
+if (CheckEnergy() == true && s_DevilArmor == false)
+{
+k_DevilArmor = true;
+IObjectEnableTrigger activate = (IObjectEnableTrigger)GameScriptInterface.Game.CreateObject("EnableTrigger");
+buffer = GetModifiers();
+GameScriptInterface.Game.PlayEffect("FIRE", GetOwner().GetWorldPosition(), 1, 25f, 2000f, true);
+BTFS_Game.ShowCFTX("DEVIL ARMOR!", GetOwner());
+PlayerModifiers mod = GetModifiers();
+mod.CurrentEnergy -= GetEnergyPrice();
+Events.UpdateCallback.Start((float x) =>
+{
+Random rnd = new Random();
+int num = rnd.Next(0, 100);
+GameScriptInterface.Game.PlayEffect("STM", GetOwner().GetWorldPosition(), 1, 50f, 2000f, true);
+GameScriptInterface.Game.PlayEffect("STM", GetOwner().GetWorldPosition(), 1, 50f, 2000f, true);
+GameScriptInterface.Game.PlayEffect("STM", GetOwner().GetWorldPosition(), 1, 50f, 2000f, true);
+if (num > 0 && GetOwner().IsDead != true)
+{
+GameScriptInterface.Game.PlayEffect("CFTXT", GetOwner().GetWorldPosition(), "I'm ready die again and again. . .".ToUpper());
+GetOwner().SetModifiers(buffer);
+GetOwner().SetStrengthBoostTime(0);
+}
+else
+{
+if (GetOwner().IsRemoved != true)
+{
+GameScriptInterface.Game.PlayEffect("CFTXT", GetOwner().GetWorldPosition(), "...");
+GetOwner().Kill();
+}
+}
+}, 10000, 1);
+mod.MeleeDamageDealtModifier += 1.5f;
+mod.RunSpeedModifier = 1.8F;
+mod.SprintSpeedModifier = 3F;
+mod.ProjectileCritChanceTakenModifier = 0;
+mod.ProjectileDamageTakenModifier = 0;
+mod.FireDamageTakenModifier = 0;
+mod.ImpactDamageTakenModifier = 0;
+mod.ExplosionDamageTakenModifier = 0;
+mod.MeleeDamageTakenModifier = 0;
+mod.MaxEnergy *= 2;
+mod.EnergyRechargeModifier = 40;
+mod.MeleeStunImmunity = 0;
+GetOwner().SetStrengthBoostTime(1000000);
+GetOwner().SetModifiers(mod);
+s_DevilArmor = false;
+GetOwner().SetModifiers(mod);
+}
+else
+{
+BTFS_Game.ShowCFTX(templateSkillStrings[0], GetOwner());
+}
+}
+public override void Activate(IPlayer player)
+{
+SetOwner(player);
+_cb.OnPlayerKeyInput.AddRoute(GetOwner(), (Action<IPlayer, VirtualKeyInfo[]>)OnPlayerKeyInput);
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+namespace Modes.Data.Skills.Actives
+{
+public class EatingObjects : Active
+{
+public int EatCounter = 0;
+public int MaxEatCounter = 5;
+VirtualKey[] _key_binds =
+{
+VirtualKey.WALKING,
+VirtualKey.ATTACK,
+VirtualKey.AIM_CLIMB_DOWN
+};
+public EatingObjects(float energy_price, Callbacks cb) : base(energy_price, cb)
+{
+SetKeys(_key_binds);
+SetEnergyPrice(energy_price);
+}
+public override void TakeEnergy()
+{
+foreach (IPlayer plr in GameScriptInterface.Game.GetObjects<IPlayer>(GetOwner().GetAABB()))
+{
+if (plr.UniqueID != GetOwner().UniqueID && plr.IsDead && plr.GetCharacter() != GetOwner().GetCharacter())
+{
+plr.Gib();
+PlayerModifiers mod = GetOwner().GetModifiers();
+mod.CurrentHealth += 25;
+mod.CurrentEnergy -= GetEnergyPrice();
+GetOwner().SetModifiers(mod);
+if (EatCounter < MaxEatCounter)
+EatCounter++;
+else
+EatCounter = 6; // Keep it Secret!
+if (EatCounter < MaxEatCounter)
+BTFS_Game.ShowCFTX(string.Format("NYAM {0}/{1}!", EatCounter, MaxEatCounter), GetOwner());
+else
+BTFS_Game.ShowCFTX(string.Format("???"), GetOwner()); //It's a secret!
+}
+}
+}
+public int GetEatCounter()
+{
+return EatCounter;
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+using System.Collections.Generic;
+namespace Modes.Data.Skills.Actives
+{
+public class FBI_Support : Active
+{
+public FBI_Support (int EnergyPrice, Callbacks cb) : base (EnergyPrice, cb)
+{
+}
+public override void TakeEnergy()
+{
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+using System.Collections.Generic;
+namespace Modes.Data.Skills.Actives
+{
+public class Hide : Active
+{
+bool WasHide = false;
+List<string> AcceptObjectsToHide = new List<string>();
+IObject CurrentHideInObject;
+VirtualKey[] _key_binds =
+{
+VirtualKey.WALKING,
+VirtualKey.RELOAD
+};
+public Hide(float energy_price, Callbacks cb, params string[] accept) : base(energy_price, cb)
+{
+foreach (string obj_name in accept)
+AddToAcceptObjectList(obj_name);
+SetKeys(_key_binds);
+SetEnergyPrice(energy_price);
+}
+public void AddToAcceptObjectList(string obj_name)
+{
+AcceptObjectsToHide.Add(obj_name);
+}
+public override void TakeEnergy()
+{
+foreach (IObject obj in GameScriptInterface.Game.GetObjectsByArea(GetOwner().GetAABB()))
+{
+foreach (string obj_name in AcceptObjectsToHide)
+{
+if (obj.Name == obj_name)
+{
+CurrentHideInObject = obj;
+BTFS_Game.ShowCFTX("HIDE!", CurrentHideInObject);
+SetHide(true);
+}
+}
+}
+}
+public void SetHide(bool hide)
+{
+WasHide = hide;
+Vector2 temp = new Vector2(CurrentHideInObject.GetWorldPosition().X, GameScriptInterface.Game.GetCameraMaxArea().TopLeft.Y + 100000);
+IObject obj = GameScriptInterface.Game.CreateObject("InvisibleBlock", temp);
+GetOwner().SetWorldPosition(new Vector2(temp.X, temp.Y + 10));
+GetOwner().SetInputMode(PlayerInputMode.ReadOnly);
+Events.PlayerKeyInputCallback.Start(HideManipulation);
+Events.ObjectDamageCallback.Start(OnObjectDamage);
+Events.ObjectTerminatedCallback.Start(OnObjectTerminated);
+}
+public void OnObjectDamage(IObject obj, ObjectDamageArgs args)
+{
+string[] RandomWords = { "OUCH!", "AHHH!!", "NOPE!", "I CAN'T HERE!" };
+Random random = new Random();
+if (obj == CurrentHideInObject && IsHide() == true)
+{
+PlayerModifiers mod = GetOwner().GetModifiers();
+mod.CurrentHealth -= args.Damage / 2;
+GetOwner().SetModifiers(mod);
+if (mod.CurrentHealth < 35)
+BTFS_Game.ShowCFTX(RandomWords[random.Next(0, RandomWords.GetLength(0))], CurrentHideInObject);
+CurrentHideInObject.SetLinearVelocity(new Vector2 (0, 0.5f));
+if (args.Damage > mod.CurrentHealth)
+GetOwner().Kill();
+}
+}
+public void OnObjectTerminated(IObject[] objs)
+{
+foreach (IObject obj in objs)
+{
+if (obj == CurrentHideInObject)
+{
+if (IsHide() == true)
+{
+WasHide = false;
+GetOwner().SetInputMode(PlayerInputMode.Enabled);
+GetOwner().SetWorldPosition(CurrentHideInObject.GetWorldPosition());
+Events.UpdateCallback.Start((x) => GetOwner().SetInputEnabled(true), 0u, 1);
+}
+}
+}
+}
+public void HideManipulation(IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+if (GetOwner() == player && IsHide() == true)
+{
+for (int i = 0; i < keyEvents.Length; i++)
+{
+if (keyEvents[i].Event == VirtualKeyEvent.Pressed)
+{
+if (GetOwner().KeyPressed(VirtualKey.ACTIVATE))
+{
+WasHide = false;
+GetOwner().SetInputMode(PlayerInputMode.Enabled);
+GetOwner().SetWorldPosition(CurrentHideInObject.GetWorldPosition());
+}
+if (GetOwner().KeyPressed(VirtualKey.AIM_CLIMB_UP))
+CurrentHideInObject.SetLinearVelocity(new Vector2(0, 3.5f));
+if (GetOwner().KeyPressed(VirtualKey.AIM_RUN_LEFT))
+CurrentHideInObject.SetAngle(-10);
+if (GetOwner().KeyPressed(VirtualKey.AIM_RUN_RIGHT))
+CurrentHideInObject.SetAngle(10);
+}
+}
+}
+}
+public bool IsHide()
+{
+return WasHide;
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+using System.Collections.Generic;
+namespace Modes.Data.Skills.Actives
+{
+// public class Infection : Active
+// {
+// }
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System;
+namespace Modes.Data.Skills.Actives
+{
+public class MineBody : Active
+{
+Events.PlayerKeyInputCallback ExplodeCallback = null;
+public List<IPlayer> MineBodys = new List<IPlayer>();
+private readonly int MaxMines = 3;
+VirtualKey[] MineKeys = {
+VirtualKey.WALKING,
+VirtualKey.SHEATHE,
+VirtualKey.AIM_CLIMB_DOWN
+};
+VirtualKey[] ExplodeKeys = {
+VirtualKey.WALKING,
+VirtualKey.AIM_CLIMB_DOWN,
+VirtualKey.RELOAD
+};
+public MineBody(float energy_price, Callbacks cb) : base(energy_price, cb)
+{
+SetKeys(MineKeys);
+SetEnergyPrice(energy_price);
+}
+public override void TakeEnergy()
+{
+int current_mines = GetMines().CurrentAmmo;
+foreach (IPlayer plr in GameScriptInterface.Game.GetObjects<IPlayer>(GetOwner().GetAABB()))
+{
+if (plr.UniqueID != GetOwner().UniqueID && plr.IsDead == true)
+{
+if (GetMineBodys().Count != GetMaxMines() && current_mines > 0)
+{
+BTFS_Game.Game.PlayEffect("TR_S", plr.GetWorldPosition());
+BTFS_Game.Game.PlaySound("", plr.GetWorldPosition());
+PlayerModifiers mod = GetOwner().GetModifiers();
+AddToMines(plr);
+GetOwner().SetCurrentThrownItemAmmo(current_mines--);
+BTFS_Game.ShowCFTX("MINE " + GetMineBodys().Count + "/" + GetMaxMines(), plr);
+mod.CurrentEnergy -= GetEnergyPrice();
+GetOwner().SetModifiers(mod);
+} else {
+BTFS_Game.ShowCFTX("I CAN'T MINE ANYMORE!", plr);
+}
+}
+}
+ExplodeCallback = Events.PlayerKeyInputCallback.Start(ExplodeBody);
+}
+public void ExplodeBody(IPlayer player, VirtualKeyInfo[] keyEvents)
+{
+for (int i = 0; i < keyEvents.Length; i++)
+{
+if (keyEvents[i].Event == VirtualKeyEvent.Pressed)
+{
+if (player.KeyPressed(ExplodeKeys[0]) && player.KeyPressed(ExplodeKeys[1]) && player.KeyPressed(ExplodeKeys[2]))
+{
+foreach (IPlayer plr in GetMineBodys())
+{
+CreateTriggerExplosion(plr.GetWorldPosition(), true);
+}
+GetMineBodys().Clear();
+ExplodeCallback.Stop();
+}
+}
+}
+}
+public void AddToMines(IPlayer player)
+{
+MineBodys.Add(player);
+}
+public ThrownWeaponItem GetMines()
+{
+ThrownWeaponItem mines = new ThrownWeaponItem();
+if (GetOwner().CurrentThrownItem.WeaponItem == WeaponItem.MINES)
+return mines = GetOwner().CurrentThrownItem;
+return mines;
+}
+IObjectExplosionTrigger CreateTriggerExplosion(Vector2 vector, bool enable)
+{
+IObjectExplosionTrigger exp = (IObjectExplosionTrigger)GameScriptInterface.Game.CreateObject("ExplosionTrigger", vector);
+exp.SetEnabled(enable);
+exp.SetActivateOnStartup(enable);
+return exp;
+}
+public List<IPlayer> GetMineBodys()
+{
+return MineBodys;
+}
+public int GetMaxMines()
+{
+return MaxMines;
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills.Actives
+{
+public class Revive : Active
+{
+VirtualKey[] _key_binds =
+{
+VirtualKey.WALKING,
+VirtualKey.BLOCK
+};
+public Revive(float energy_price, Callbacks cb) : base(energy_price, cb)
+{
+SetKeys(_key_binds);
+SetEnergyPrice(energy_price);
+}
+public override void TakeEnergy()
+{
+foreach (IPlayer plr in GameScriptInterface.Game.GetObjects<IPlayer>(GetOwner().GetAABB()))
+{
+if (plr.UniqueID != GetOwner().UniqueID)
+{
+if (plr.IsDead)
+{
+BTFS_Game.ShowCFTX("STEAL!", GetOwner());
+PlayerModifiers mod = GetOwner().GetModifiers();
+mod.CurrentEnergy -= GetEnergyPrice();
+GetOwner().SetModifiers(mod);
+}
+}
+}
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills.Actives
+{
+public class Steal : Active
+{
+VirtualKey[] _key_binds =
+{
+VirtualKey.WALKING,
+VirtualKey.ACTIVATE
+};
+public Steal(float energy_price, Callbacks cb) : base(energy_price, cb)
+{
+SetKeys(_key_binds);
+SetEnergyPrice(energy_price);
+}
+public override void TakeEnergy()
+{
+foreach (IPlayer plr in GameScriptInterface.Game.GetObjects<IPlayer>(GetOwner().GetAABB()))
+{
+if (plr.UniqueID != GetOwner().UniqueID)
+{
+if (GetWeapon(plr) != WeaponItem.NONE)
+{
+BTFS_Game.ShowCFTX("STEAL!", GetOwner());
+PlayerModifiers mod = GetOwner().GetModifiers();
+mod.CurrentEnergy -= GetEnergyPrice();
+GetOwner().SetModifiers(mod);
+}
+}
+}
+}
+private WeaponItem GetWeapon(IPlayer player)
+{
+WeaponItem weaponItem = WeaponItem.NONE;
+if ((player.CurrentMeleeMakeshiftWeapon).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentMeleeMakeshiftWeapon).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+if ((player.CurrentMeleeWeapon).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentMeleeWeapon).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+if ((player.CurrentPowerupItem).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentPowerupItem).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+if ((player.CurrentPrimaryRangedWeapon).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentPrimaryRangedWeapon).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+if ((player.CurrentPrimaryWeapon).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentPrimaryWeapon).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+if ((player.CurrentSecondaryRangedWeapon).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentSecondaryRangedWeapon).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+if ((player.CurrentThrownItem).WeaponItem != WeaponItem.NONE)
+{
+weaponItem = (player.CurrentThrownItem).WeaponItem;
+player.Disarm(Mapper.GetWeaponItemType(weaponItem));
+return weaponItem;
+}
+return WeaponItem.NONE;
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using System;
+using SFDGameScriptInterface;
+namespace Modes.Data.Skills
+{
+class BodyTrap : Skill
+{
+public BodyTrap(Callbacks cb) : base(cb) { }
+//Bad code. Needs improve.
+void OnPlayerDeath(IPlayer player, PlayerDeathArgs args)
+{
+ushort a = 0;
+Events.UpdateCallback.Start((float e) =>
+{
+if (player.IsRemoved == false)
+{
+foreach (IObject obj in GameScriptInterface.Game.GetObjectsByArea(player.GetAABB(), PhysicsLayer.Active))
+{
+if (obj.UniqueID != player.UniqueID)
+{
+if (obj.GetBodyType() == BodyType.Dynamic)
+{
+BTFS_Game.Game.PlayEffect("STM", player.GetWorldPosition(), 0f, 0f, true);
+obj.TrackAsMissile(true);
+switch (obj.GetFaceDirection())
+{
+case 1:
+obj.SetLinearVelocity(new Vector2(80f, 8f));
+break;
+case -1:
+obj.SetLinearVelocity(new Vector2(-80f, 3f));
+break;
+}
+if (obj is IPlayer)
+{
+IPlayer tmp_p = (IPlayer) obj;
+tmp_p.SetInputEnabled(false);
+tmp_p.AddCommand(new PlayerCommand(PlayerCommandType.Fall));
+Events.UpdateCallback.Start((x) => tmp_p.SetInputEnabled(true), 0u, 1);
+GameScriptInterface.Game.PlaySound("Wilhelm", new Vector2(), 100);
+GameScriptInterface.Game.PlaySound("CartoonScream", new Vector2(), 100);
+}
+BTFS_Game.Game.PlayEffect("TR_F", obj.GetWorldPosition(), 0f, 0f, true);
+}
+}
+}
+//GameScriptInterface.Game.WriteToConsole ("Body trap thread is work");
+}
+else
+{
+a = 1;
+return;
+}
+}, 30, a);
+}
+public override void Activate(IPlayer player)
+{
+SetOwner(player);
+_cb.OnPlayerDeath.AddRoute(GetOwner(), (Action<IPlayer, PlayerDeathArgs>)OnPlayerDeath);
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+namespace Modes.Data.Skills
+{
+using System;
+using SFDGameScriptInterface;
+class Kamikaze : Skill
+{
+bool IsExplode = false;
+string _str;
+uint _delay;
+public Kamikaze(Callbacks cb, string str, uint delay = 10) : base(cb)
+{
+_str = str;
+_delay = delay;
+}
+void OnPlayerDeath(IPlayer player, PlayerDeathArgs args)
+{
+if (!IsExplode)
+Events.UpdateCallback.Start((float x) =>
+{
+BTFS_Game.Game.PlayEffect("CFTXT", GetOwner().GetWorldPosition(), _str);
+IObjectExplosionTrigger explosion = (IObjectExplosionTrigger)GameScriptInterface.Game.CreateObject("ExplosionTrigger", GetOwner().GetWorldPosition());
+explosion.Trigger();
+explosion.SetEnabled(true);
+explosion.Remove();
+IsExplode = true;
+}, _delay, 1);
+}
+public override void Activate(IPlayer player)
+{
+SetOwner(player);
+_cb.OnPlayerDeath.AddRoute(player, (Action<IPlayer, PlayerDeathArgs>)OnPlayerDeath);
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+namespace Modes.Data.Skills
+{
+using System;
+using SFDGameScriptInterface;
+class Respawn : Skill
+{
+float _timer;
+public Respawn(Callbacks cb, float timer) : base(cb)
+{
+_timer = timer;
+}
+void OnPlayerDeath(IPlayer player, PlayerDeathArgs args)
+{
+Character _character = player.GetCharacter();
+if (args.Removed != true)
+{
+IUser user = GetOwner().GetUser();
+//                     ushort a = 1;
+bool _wasAlive = false;
+int faceDirection;
+_character.SetUser(user);
+_character.SetOnStartShowDialogue(false);
+_character.SetOnStartShowDescription(false);
+Events.UpdateCallback.Start((float x) =>
+{
+if (_wasAlive == false)
+{
+if (player.IsRemoved == false && _character.GetUser() != null)
+{
+Vector2 pos = player.GetWorldPosition();
+faceDirection = player.FacingDirection;
+_character.SetOldPlayer(player);
+_character.GetOldPlayer().Remove();
+_character.CreateCharacter(pos);
+_character.GetPlayer().SetFaceDirection(faceDirection);
+PlayerModifiers mod = player.GetModifiers();
+_character.GetPlayer().SetModifiers(mod);
+BTFS_Game.ShowCFTX("I AM ALIVE!", _character.GetPlayer());
+_wasAlive = true;
+return;
+}
+_wasAlive = true;
+return;
+}
+}, (uint)_timer, 1);
+}
+}
+public override void Activate(IPlayer player)
+{
+SetOwner(player);
+_cb.OnPlayerDeath.AddRoute(GetOwner(), (Action<IPlayer, PlayerDeathArgs>)OnPlayerDeath);
+}
+}
+}
+}
+/* Copyright (C) 2022 Ivan Kozlov.
+* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills
+{
+// class Compression : Skill
+// {
+// private readonly string[] _description =
+// {
+//     "On damage taken player is smaller on 0.1%"
+// };
+// private bool _show_description;
+// float _factor;
+// public Compression(Callbacks cb, float factor = 1, bool show_description = true) : base(cb)
+// {
+//     Name = "Compression";
+//     _factor = factor;
+//     _show_description = show_description;
+// }
+// public void ShowDescription(UserMessageCallbackArgs args)
+// {
+//     GameScriptInterface.Game.ShowChatMessage("Passive Skill Name: " + Name, Color.Green, args.User.UserIdentifier);
+//     foreach (string str in _description)
+//         GameScriptInterface.Game.ShowChatMessage(str, Color.Yellow, args.User.UserIdentifier);
+// }
+// void OnPlayerDamage(IPlayer player, PlayerDamageArgs args)
+// {
+//     PlayerModifiers modifiers = player.GetModifiers();
+//     modifiers.SizeModifier -= (float)Global.GetPercent((int)modifiers.MaxHealth, (int)args.Damage) / 100;
+//     player.SetModifiers(modifiers);
+// }
+// public override void Activate(IPlayer player)
+// {
+//     _cb.OnPlayerDamage.AddRoute(player, (Action<IPlayer, PlayerDamageArgs>)OnPlayerDamage);
+// }
+// }
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills
+{
+class DamageUp : Skill
+{
+float _factor;
+float _maximumMelee;
+public DamageUp(Callbacks cb, float maximumMelee, float factor = 0.001f) : base(cb)
+{
+_factor = factor;
+_maximumMelee = maximumMelee;
+}
+void OnPlayerDamage(IPlayer player, PlayerDamageArgs args)
+{
+PlayerModifiers modifiers = player.GetModifiers();
+if (modifiers.MeleeDamageDealtModifier <= _maximumMelee)
+{
+modifiers.MeleeDamageDealtModifier += (float)_factor;
+player.SetModifiers(modifiers);
+}
+}
+public override void Activate(IPlayer player)
+{
+_cb.OnPlayerDamage.AddRoute(player, (Action<IPlayer, PlayerDamageArgs>)OnPlayerDamage);
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+* Idea by: Opthafuth
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills
+{
+class Regeneration : Skill
+{
+private float regenInterval;
+private float totalElapsed = 0;
+private float regenHealth;
+private string _game_effect;
+public Regeneration(Callbacks cb, float timer, float regenHealth, string game_effect = "") : base(cb)
+{
+Name = "Regeneration";
+regenInterval = timer;
+this.regenHealth = regenHealth;
+_game_effect = game_effect;
+}
+void UpdatePlayer(IPlayer player, float e)
+{
+totalElapsed += e;
+if (totalElapsed > regenInterval)
+{
+PlayerModifiers mod = player.GetModifiers();
+mod.CurrentHealth += regenHealth;
+SetModifiers(mod);
+BTFS_Game.ShowGameEffect(_game_effect, player);
+totalElapsed = 0;
+}
+}
+public override void Activate(IPlayer player)
+{
+SetOwner(player);
+((UpdateCallback)_cb.OnObjectCreated).HandlePlayer(player);
+//Events.UpdateCallback.Start (((UpdateCallback)_cb.OnPlayerUpdate).Run);
+_cb.OnObjectCreated.AddRoute(player, (Action<IPlayer, float>)UpdatePlayer);
+//_cb.OnPlayerCreated.AddRoute (GetOwner (), (Action <IPlayer, IObject[]> ) UpdatePlayer);
+}
+}
+}
+}
+/* Copyright (C) 2022 Daniil Alexeev.
+This file is part of Shootout.
+Shootout is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3, or (at your option)
+any later version.
+Shootout is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with Shootout; if not, see <https://www.gnu.org/licenses>.
+Additional permission under GNU GPL version 3 section 7
+If you modify Shootout, or any covered work, by linking or combining
+it with MythoLogic Interactive's Superfighters Deluxe, the licensors
+of this Program grant you additional permission to convey the resulting
+work.  */
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+namespace Modes.Data.Skills
+{
+class SpeedUp : Skill
+{
+float _factor;
+public SpeedUp(Callbacks cb, float factor = 0.01f) : base(cb)
+{
+_factor = factor;
+}
+void OnPlayerDamage(IPlayer player, PlayerDamageArgs args)
+{
+PlayerModifiers modifiers = player.GetModifiers();
+modifiers.RunSpeedModifier += (float)Global.GetPercent((int)modifiers.MaxHealth, (int)args.Damage) / 1000;
+modifiers.SprintSpeedModifier += (float)Global.GetPercent((int)modifiers.MaxHealth, (int)args.Damage) / 1000;
+player.SetModifiers(modifiers);
+}
+public override void Activate(IPlayer player)
+{
+_cb.OnPlayerDamage.AddRoute(player, (Action<IPlayer, PlayerDamageArgs>)OnPlayerDamage);
+}
+}
+}
+}
+namespace BTFS
+{
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SFDGameScriptInterface;
+public class Shootout_Extended : BTFS_Game
+{
+public Shootout_Extended(string _Name = "Shootout Extended") : base(_Name)
+{
+Name = _Name;
+Version = "Pre-Alpha v0.50";
+Features = "- New plugin Doors Generator!/n" +
+"- New plugin Spectating Mode!/n" +
+"- Fixed many bugs in script!/n/n";
+CurrentMode = new Modes.Default();
+}
+}
+}
+namespace BTFS
+{
+using System.Collections.Generic;
+using System.Linq;
+using System;
+using SFDGameScriptInterface;
+public class BTFS_Game : GameScriptInterface
+{
+// public static IGame Game;
+public static string Name { get; set; }
+public static string Features { get; set; }
+public static string Version { get; set; }
+public static bool EnableToShowInformation;
+public static bool BotsSupport = true;
+public static bool ShowDialogues = true;
+public static bool ShowDescriptions = true;
+public static bool ShuffleCharacters = true;
+public static Callbacks cbs;
+public static List<Vector2> SpawnPoints = new List<Vector2>();
+public static string[] Description = null;
+public static string[] Authors = null;
+public static int[] Users;
+public readonly string License = "License: GNU LGPL v3";
+public Mode[] Modes = null;
+public static Mode CurrentMode = null;
+public static Random random = new Random();
+public static Events.UserMessageCallback uargs = null;
+public enum ModifierType
+{
+MaxHealth,
+MaxEnergy,
+CurrentHealth,
+CurrentEnergy,
+EnergyConsumption,
+ExplosionDamageTaken,
+ProjectileDamageTaken,
+ProjectileCritChanceTaken,
+FireDamageTaken,
+MeleeDamageTaken,
+ImpactDamageTaken,
+ProjectileDamageDealt,
+ProjectileCritChanceDealt,
+MeleeDamageDealt,
+MeleeForce,
+MeleeStunImmunity,
+CanBurn,
+RunSpeed,
+SprintSpeed,
+EnergyRecharge,
+Size,
+InfiniteAmmo,
+ItemDropMode
+}
+public BTFS_Game(string _Name) : base(null)
+{
+Name = _Name;
+}
+public static void InitializeCallbacks()
+{
+cbs = new Callbacks();
+cbs.OnPlayerDamage = new PlayerDamageCallback();
+cbs.OnPlayerDeath = new PlayerDeathCallback();
+cbs.OnPlayerKeyInput = new PlayerKeyInputCallback();
+cbs.OnObjectCreated = new UpdateCallback();
+Events.PlayerDamageCallback.Start(((PlayerDamageCallback)cbs.OnPlayerDamage).Run);
+Events.PlayerDeathCallback.Start(((PlayerDeathCallback)cbs.OnPlayerDeath).Run);
+Events.PlayerKeyInputCallback.Start(((PlayerKeyInputCallback)cbs.OnPlayerKeyInput).Run);
+Events.UpdateCallback.Start(((UpdateCallback)cbs.OnObjectCreated).Run);
+uargs = Events.UserMessageCallback.Start(OnUserMessage);
+}
+public static Callbacks GetCallbacks()
+{
+return cbs;
+}
+public void TryToStartMode(Mode mode)
+{
+if (mode != null)
+{
+if (CurrentMode.OnStartup)
+{
+CurrentMode.StartUp(CurrentMode.OnStartup);
+}
+}
+else
+{
+GameScriptInterface.Game.ShowChatMessage("Game not contain a mode. Game started with default SFD map type mode.", Color.Green);
+}
+}
+public static void OnUserMessage (UserMessageCallbackArgs args)
+{
+// foreach (CommandShell Command in )
+}
+public static float GetModifiersByTypes(IPlayer plr, params ModifierType[] mt)
+{
+PlayerModifiers pm = plr.GetModifiers();
+foreach (ModifierType modifiertype in mt)
+{
+switch (modifiertype)
+{
+case ModifierType.MaxHealth:
+return pm.MaxHealth;
+case ModifierType.MaxEnergy:
+return pm.MaxEnergy;
+case ModifierType.CurrentHealth:
+return pm.CurrentHealth;
+case ModifierType.CurrentEnergy:
+return pm.CurrentEnergy;
+case ModifierType.EnergyConsumption:
+return pm.EnergyConsumptionModifier;
+case ModifierType.ExplosionDamageTaken:
+return pm.ExplosionDamageTakenModifier;
+case ModifierType.ProjectileDamageTaken:
+return pm.ProjectileDamageTakenModifier;
+case ModifierType.ProjectileCritChanceTaken:
+return pm.ProjectileCritChanceTakenModifier;
+case ModifierType.FireDamageTaken:
+return pm.FireDamageTakenModifier;
+case ModifierType.MeleeDamageTaken:
+return pm.MeleeDamageTakenModifier;
+case ModifierType.ImpactDamageTaken:
+return pm.ImpactDamageTakenModifier;
+case ModifierType.ProjectileDamageDealt:
+return pm.ProjectileDamageDealtModifier;
+case ModifierType.ProjectileCritChanceDealt:
+return pm.ProjectileCritChanceDealtModifier;
+case ModifierType.MeleeDamageDealt:
+return pm.MeleeDamageDealtModifier;
+case ModifierType.MeleeForce:
+return pm.MeleeForceModifier;
+case ModifierType.MeleeStunImmunity:
+return pm.MeleeStunImmunity;
+case ModifierType.CanBurn:
+return pm.CanBurn;
+case ModifierType.RunSpeed:
+return pm.RunSpeedModifier;
+case ModifierType.SprintSpeed:
+return pm.SprintSpeedModifier;
+case ModifierType.EnergyRecharge:
+return pm.EnergyRechargeModifier;
+case ModifierType.Size:
+return pm.SizeModifier;
+case ModifierType.InfiniteAmmo:
+return pm.InfiniteAmmo;
+case ModifierType.ItemDropMode:
+return pm.ItemDropMode;
+}
+}
+return -1;
+}
+public void TryToStartMode()
+{
+if (CurrentMode != null)
+{
+if (CurrentMode.OnStartup)
+{
+InitializeCallbacks();
+CurrentMode.StartUp(CurrentMode.OnStartup);
+}
+}
+else
+{
+GameScriptInterface.Game.ShowChatMessage("Game not contain a mode. Game started with default SFD map type mode.", Color.Green);
+}
+}
+public void SetRandomMode(Mode[] Modes)
+{
+if (Modes != null)
+{
+Random random = new Random();
+CurrentMode = Modes[random.Next(0, Modes.Length)];
+}
+}
+public static Character[] GetActiveLiveCharacters()
+{
+List<Character> tmp = new List<Character>();
+foreach (Character character in CurrentMode.GetPlayableCharacters())
+{
+if ((character.GetPlayer().IsUser || character.GetPlayer().IsBot) && character.WasSpawned() && !character.GetPlayer().IsDead)
+{
+tmp.Add(character);
+}
+}
+if (tmp.Count != 0)
+return tmp.ToArray();
+return tmp.ToArray();
+}
+public static void OnStartMessages(string str, Color color, uint delay)
+{
+GameScriptInterface.Game.ShowPopupMessage(str, color);
+Events.UpdateCallback.Start((x) => GameScriptInterface.Game.HidePopupMessage(), delay, 1);
+}
+public static void SendMessageToAll(Color color, params string[] message)
+{
+foreach (string msg in message)
+GameScriptInterface.Game.ShowChatMessage(msg, color);
+}
+public static Vector2 GetCenterOfObject(IObject obj)
+{
+Vector2 tmp = new Vector2();
+Area area = obj.GetAABB();
+tmp = area.Center;
+return tmp;
+}
+public static void SendMessageToPlayer(IUser user, Color color, params string[] message)
+{
+UserMessageCallbackArgs args = new UserMessageCallbackArgs(user, "");
+foreach (string msg in message)
+{
+if (!user.IsBot)
+GameScriptInterface.Game.ShowChatMessage(msg, color, args.User.UserIdentifier);
+}
+}
+public static void SendMessageToHost(Color color, params string[] message)
+{
+foreach (IUser user in GameScriptInterface.Game.GetActiveUsers())
+{
+UserMessageCallbackArgs args = new UserMessageCallbackArgs(user, "");
+foreach (string msg in message)
+{
+if (user.IsHost)
+GameScriptInterface.Game.ShowChatMessage(msg, color, args.User.UserIdentifier);
+}
+}
+}
+public static Vector2 GetSpawnPoint(int id)
+{
+return SpawnPoints[id];
+}
+public void OnStartDescriptions(bool show, Mode mode)
+{
+foreach (Character character in GetCurrentMode().GetPlayableCharacters())
+character.SetOnStartShowDescription(show);
+}
+public void OnStartDialogues(bool show)
+{
+foreach (Character character in CurrentMode.GetPlayableCharacters())
+character.SetOnStartShowDialogue(show);
+}
+public IDialogue CreateDialogue(string text, Color color, Vector2 pos, string name, float duration, bool showInChat)
+{
+return GameScriptInterface.Game.CreateDialogue(text, color, pos, name, duration, showInChat);
+}
+public void DisableCollisionInteraction(bool Melee, bool Projectile, bool Explosion, params Character[] characters)
+{
+IObjectAlterCollisionTile obja = (IObjectAlterCollisionTile)Game.CreateObject("AlterCollision");
+foreach (Character chr in characters)
+{
+obja.AddTargetObject(chr.GetPlayer());
+}
+Events.UpdateCallback.Start((float x) =>
+{
+foreach (IPlayer obj in obja.GetTargetObjects())
+{
+obja.SetDisablePlayerMelee(Melee);
+obja.SetDisableProjectileHit(Projectile);
+if (obj.IsDead && obj.IsRemoved)
+{
+obja.SetDisablePlayerMelee(false);
+obja.SetDisableProjectileHit(false);
+obja.Remove();
+return;
+}
+}
+}, 100, 0);
+}
+public static void ShowCFTX(string text, IObject obj)
+{
+GameScriptInterface.Game.PlayEffect("CFTXT", obj.GetWorldPosition(), text);
+}
+public static void ShowGameEffect(string gameEffectName, IObject obj)
+{
+GameScriptInterface.Game.PlayEffect(gameEffectName, obj.GetWorldPosition());
+}
+public static void SetSpawnPoints(string obj_name)
+{
+Users = Global.GenerateRandomArrayNonDuplicate(GameScriptInterface.Game.GetActiveUsers().Length);
+foreach (IObject obj in GameScriptInterface.Game.GetObjectsByName(obj_name))
+{
+SpawnPoints.Add(obj.GetWorldPosition());
+}
+}
+public void SetDescription(params string[] _Description) { Description = _Description; }
+public static void SetMode(Mode mode) { CurrentMode = mode; }
+public void SetAuthors(params string[] _Authors) { Authors = _Authors; }
+public static Mode GetCurrentMode()
+{
+return CurrentMode;
+}
+public string[] GetAuthors() { return Authors; }
+public Mode[] GetModeList() { return this.Modes; }
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+using System.Linq;
+using System;
+public static class Global
+{
+/* BTFS Settings */
+public static bool Debug = true;
+public static bool UnstableBuild = true;
+public static readonly string Version = "v0.50 Beta";
+// Original author: NearHuscarl
+// https://github.com/NearHuscarl/BotExtended/blob/master/src/BotExtended/Library/SharpHelper.cs
+#region NearHuscarlCode
+public static T StringToEnum<T>(string str) { return (T)Enum.Parse(typeof(T), str); }
+public static T[] EnumToArray<T>() { return (T[])Enum.GetValues(typeof(T)); }
+public static string EnumToString<T>(T enumVal) { return Enum.GetName(typeof(T), enumVal); }
+public static void Timeout(Action callback, uint interval) {Events.UpdateCallback.Start(e => callback.Invoke(), interval, 1);}
+public static bool TryParseEnum<T>(string str, out T result) where T : struct, IConvertible
+{
+result = default(T);
+if (!typeof(T).IsEnum)
+{
+return false;
+}
+int index = -1;
+if (int.TryParse(str, out index))
+{
+if (Enum.IsDefined(typeof(T), index))
+{
+// https://stackoverflow.com/questions/10387095/cast-int-to-generic-enum-in-c-sharp
+result = (T)(object)index;
+}
+else
+{
+return false;
+}
+}
+else
+{
+if (!Enum.TryParse(str, ignoreCase: true, result: out result))
+{
+return false;
+}
+}
+return true;
+}
+#endregion
+public static void Shuffle<T> (this Random rng, T[] array)
+{
+int n = array.Length;
+while (n > 1)
+{
+int k = rng.Next(n--);
+T temp = array[n];
+array[n] = array[k];
+array[k] = temp;
+}
+}
+public static Int32 GetPercent(Int32 b, Int32 a)
+{
+if (b == 0) return 0;
+return (Int32)( a / (b / 100M));
+}
+public static int[] GenerateRandomArrayNonDuplicate (int length)
+{
+Random random = new Random();
+return Enumerable.Range (0, length).OrderBy(c => random.Next()).ToArray();
+}
+public static float GetPercentByValue (float current, float maximum)
+{
+float result = (float) Math.Round ((double) (100 * current) / maximum);
+return result;
+}
+public static double GetPercentByValue (double current, double maximum)
+{
+double result = Math.Round ((double) (100 * current) / maximum);
+return result;
+}
+public static int GetPercentByValue (int current, int maximum)
+{
+int result = (int) Math.Round ((double) (100 * current) / maximum);
+return result;
+}
+public static T[] Append<T>(this T[] array, T item)
+{
+if (array == null)
+{
+return new T[] { item };
+}
+T[] result = new T[array.Length + 1];
+array.CopyTo(result, 0);
+result[array.Length] = item;
+return result;
+}
+}
+}
+// Author: NearHuscarl
+// Link:   https://github.com/NearHuscarl/BotExtended/blob/master/src/BotExtended/Library/Mapper.cs
+namespace BTFS
+{
+using SFDGameScriptInterface;
+public static class Mapper
+{
+public static WeaponItemType GetWeaponItemType(WeaponItem weaponItem)
+{
+// UPDATE: SFD.Weapons.WeaponDatabase 1.3.4
+switch (weaponItem)
+{
+case WeaponItem.ASSAULT:
+case WeaponItem.BAZOOKA:
+case WeaponItem.BOW:
+case WeaponItem.CARBINE:
+case WeaponItem.DARK_SHOTGUN:
+case WeaponItem.FLAMETHROWER:
+case WeaponItem.GRENADE_LAUNCHER:
+case WeaponItem.M60:
+case WeaponItem.MP50:
+case WeaponItem.SAWED_OFF:
+case WeaponItem.SHOTGUN:
+case WeaponItem.SMG:
+case WeaponItem.SNIPER:
+case WeaponItem.TOMMYGUN:
+return WeaponItemType.Rifle;
+case WeaponItem.FLAREGUN:
+case WeaponItem.MACHINE_PISTOL:
+case WeaponItem.MAGNUM:
+case WeaponItem.PISTOL:
+case WeaponItem.PISTOL45:
+case WeaponItem.REVOLVER:
+case WeaponItem.SILENCEDPISTOL:
+case WeaponItem.SILENCEDUZI:
+case WeaponItem.UZI:
+return WeaponItemType.Handgun;
+case WeaponItem.PIPE:
+case WeaponItem.CHAIN:
+case WeaponItem.WHIP:
+case WeaponItem.HAMMER:
+case WeaponItem.KATANA:
+case WeaponItem.MACHETE:
+case WeaponItem.CHAINSAW:
+case WeaponItem.KNIFE:
+case WeaponItem.BAT:
+case WeaponItem.BATON:
+case WeaponItem.SHOCK_BATON:
+case WeaponItem.LEAD_PIPE:
+case WeaponItem.AXE:
+case WeaponItem.BASEBALL:
+return WeaponItemType.Melee;
+case WeaponItem.BOTTLE:
+case WeaponItem.BROKEN_BOTTLE:
+case WeaponItem.CHAIR:
+case WeaponItem.CUESTICK:
+case WeaponItem.CUESTICK_SHAFT:
+case WeaponItem.FLAGPOLE:
+case WeaponItem.PILLOW:
+case WeaponItem.SUITCASE:
+case WeaponItem.TEAPOT:
+case WeaponItem.TRASH_BAG:
+case WeaponItem.TRASHCAN_LID:
+case WeaponItem.CHAIR_LEG:
+return WeaponItemType.Melee;
+case WeaponItem.GRENADES:
+case WeaponItem.MOLOTOVS:
+case WeaponItem.MINES:
+case WeaponItem.C4:
+case WeaponItem.C4DETONATOR:
+case WeaponItem.SHURIKEN:
+return WeaponItemType.Thrown;
+case WeaponItem.STRENGTHBOOST:
+case WeaponItem.SPEEDBOOST:
+case WeaponItem.SLOWMO_5:
+case WeaponItem.SLOWMO_10:
+return WeaponItemType.Powerup;
+case WeaponItem.PILLS:
+case WeaponItem.MEDKIT:
+case WeaponItem.LAZER:
+case WeaponItem.BOUNCINGAMMO:
+case WeaponItem.FIREAMMO:
+case WeaponItem.STREETSWEEPER:
+return WeaponItemType.InstantPickup;
+default:
+return WeaponItemType.NONE;
+}
+}
+public static bool IsMakeshiftWeapon(WeaponItem weaponItem)
+{
+return weaponItem == WeaponItem.BOTTLE
+|| weaponItem == WeaponItem.BROKEN_BOTTLE
+|| weaponItem == WeaponItem.CUESTICK
+|| weaponItem == WeaponItem.CUESTICK_SHAFT
+|| weaponItem == WeaponItem.CHAIR
+|| weaponItem == WeaponItem.CHAIR_LEG
+|| weaponItem == WeaponItem.FLAGPOLE
+|| weaponItem == WeaponItem.PILLOW
+|| weaponItem == WeaponItem.SUITCASE
+|| weaponItem == WeaponItem.TEAPOT
+|| weaponItem == WeaponItem.TRASH_BAG
+|| weaponItem == WeaponItem.TRASHCAN_LID;
+}
+public static ProjectileItem GetProjectile(WeaponItem weaponItem)
+{
+switch (weaponItem)
+{
+case WeaponItem.ASSAULT:
+return ProjectileItem.ASSAULT;
+case WeaponItem.BAZOOKA:
+return ProjectileItem.BAZOOKA;
+case WeaponItem.BOW:
+return ProjectileItem.BOW;
+case WeaponItem.CARBINE:
+return ProjectileItem.CARBINE;
+case WeaponItem.DARK_SHOTGUN:
+return ProjectileItem.DARK_SHOTGUN;
+case WeaponItem.GRENADE_LAUNCHER:
+return ProjectileItem.GRENADE_LAUNCHER;
+case WeaponItem.M60:
+return ProjectileItem.M60;
+case WeaponItem.MP50:
+return ProjectileItem.MP50;
+case WeaponItem.SAWED_OFF:
+return ProjectileItem.SAWED_OFF;
+case WeaponItem.SHOTGUN:
+return ProjectileItem.SHOTGUN;
+case WeaponItem.SMG:
+return ProjectileItem.SMG;
+case WeaponItem.SNIPER:
+return ProjectileItem.SNIPER;
+case WeaponItem.TOMMYGUN:
+return ProjectileItem.TOMMYGUN;
+case WeaponItem.FLAREGUN:
+return ProjectileItem.FLAREGUN;
+case WeaponItem.MACHINE_PISTOL:
+return ProjectileItem.MACHINE_PISTOL;
+case WeaponItem.MAGNUM:
+return ProjectileItem.MAGNUM;
+case WeaponItem.PISTOL:
+return ProjectileItem.PISTOL;
+case WeaponItem.PISTOL45:
+return ProjectileItem.PISTOL45;
+case WeaponItem.REVOLVER:
+return ProjectileItem.REVOLVER;
+case WeaponItem.SILENCEDPISTOL:
+return ProjectileItem.SILENCEDPISTOL;
+case WeaponItem.SILENCEDUZI:
+return ProjectileItem.SILENCEDUZI;
+case WeaponItem.UZI:
+return ProjectileItem.UZI;
+default:
+return ProjectileItem.NONE;
+}
+}
+public static WeaponItem GetWeaponItem(ProjectileItem projectileItem)
+{
+if (projectileItem == ProjectileItem.FLAKCANNON)
+return WeaponItem.NONE;
+// Game bug: https://www.mythologicinteractiveforums.com/viewtopic.php?f=18&t=4333
+if (projectileItem == ProjectileItem.SUB_MACHINEGUN)
+return WeaponItem.TOMMYGUN;
+return Global.StringToEnum<WeaponItem>(Global.EnumToString<ProjectileItem>(projectileItem));
+}
+}
+}
+namespace BTFS {
+using System;
+using SFDGameScriptInterface;
+public abstract class Mode {
+public static Callbacks CallbackList;
+private string Name;
+private string [] Authors = null;
+private string [] Description = null;
+private object [] Settings = null;
+private Character [] Playable = null;
+private Character [] NonPlayable = null;
+private Character [] Death = null;
+private CommandShell [] HostCommandsList = null;
+private CommandShell [] ModeratorCommandsList = null;
+private CommandShell [] UserCommandsList = null;
+private Plugin [] Plugins = null;
+public bool OnStartup { get; set; }
+public Mode (string Name, bool OnStartup)
+{
+this.Name = Name;
+this.OnStartup = OnStartup;
+}
+public void StopAllPlugins (Plugin [] Plugins)
+{
+foreach (Plugin plugin in Plugins)
+plugin.Enable = false;
+}
+public void SetPlayableCharacterrs (params Character [] Characters) {
+this.Playable = Characters;
+}
+public void SetHostCommandsList (params CommandShell [] Commands)
+{
+this.HostCommandsList = Commands;
+}
+public void SetModeratorCommandsList (params CommandShell [] Commands)
+{
+this.ModeratorCommandsList = Commands;
+}
+public void SetUserCommandsList (params CommandShell [] Commands)
+{
+this.UserCommandsList = Commands;
+}
+public void SetNonPlayableCharacterrs (params Character [] Characters) {
+this.NonPlayable = Characters;
+}
+public void SetDeathCharacterrs (params Character [] Characters) {
+this.Death = Characters;
+}
+public void SetSettings (object [] Settings) {
+this.Settings = Settings;
+}
+public void SetName (string Name) {
+this.Name = Name;
+}
+public void SetAuthors (params string [] Authors) {
+this.Authors = Authors;
+}
+public void SetPlugins (params Plugin [] Plugins) {
+this.Plugins = Plugins;
+}
+public void SetDescription (params string [] Description) {
+this.Description = Description;
+}
+public string GetName () { return this.Name; }
+public object [] GetSettings () {return this.Settings;}
+public string [] GetDescription () { return this.Description; }
+public object [] GetAuthors () { return this.Authors; }
+public Plugin [] GetPlugins () { return this.Plugins; }
+public Character [] GetPlayableCharacters () {return this.Playable; }
+public CommandShell [] GetHostCommandsList () {return this.HostCommandsList; }
+public CommandShell [] GetModeratorCommandsList () {return this.ModeratorCommandsList; }
+public CommandShell [] GetUserCommandsList () {return this.UserCommandsList; }
+public abstract void StartUp(bool Start);
+public abstract bool CheckSettings (object [] Settings);
+#region PluginManipulationRegion
+// Add some plugin on start. This function checking type of plugin and add to some category.
+public void RunOnStartupPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.OnStartup();
+}
+} else {
+}
+}
+public void RunAfterStartupPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.AfterStartup();
+}
+} else {
+}
+}
+public void RunOnShutdownPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.OnShutdown();
+}
+} else {
+}
+}
+public void RunOnUpdatePlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+{
+Events.UpdateCallback.Start(plg.OnUpdate, (uint) plg.GetSleepOnUpdate(), plg.GetCyclesOnUpdate());
+}
+}
+} else {
+}
+}
+public void RunOnGameoverPlugins(Plugin [] ActionList)
+{
+if (ActionList != null && ActionList.Length != 0)
+{
+foreach (Plugin plg in ActionList)
+{
+if (plg != null)
+plg.OnGameover();
+}
+} else {
+return;
+}
+}
+#endregion
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System.Collections.Generic;
+static class PlayerExtensions
+{
+public static void Apply(this IPlayer player, Skill skill) { skill.Activate(player); }
+public static Character GetCharacter(this IPlayer player)
+{
+Character temp = null;
+foreach (Character tmp in Modes.Characters.List.Playable)
+{
+if (tmp != null && tmp.GetPlayer() != null)
+{
+if (tmp.GetPlayer() == player)
+{
+temp = tmp;
+}
+}
+}
+return temp;
+}
+}
+public class CharacterTeam
+{
+// public string Name { get; }
+IObjectAlterCollisionTile objalt;
+public CharacterTeam (string Name, params Character [] characters)
+{
+CreateObjAlt();
+// this.Name = Name;
+foreach (Character character in characters)
+AddCharacterToTeam(character);
+// if (objalt.GetTargetObjects().Length != 0)
+}
+public void AddCharacterToTeam (Character character)
+{
+objalt.AddTargetObject(character.GetPlayer());
+}
+public void UpdateTeam ()
+{
+Events.UpdateCallback.Start((x) => objalt.SetDisablePlayerMelee(false), 500, 0);
+Events.UpdateCallback.Start((x) => objalt.SetDisablePlayerMelee(true), 500, 0);
+}
+public void CreateObjAlt ()
+{
+objalt = (IObjectAlterCollisionTile) GameScriptInterface.Game.CreateObject("AlterCollisionTile");
+}
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+using System;
+public abstract class Plugin
+{
+public string Name { get; set; }
+public bool Enable { get; set; }
+private float OnUpdateSleep = 0;
+private ushort OnUpdateCycles = 1;
+// Events.UpdateCallback.Start(plg.OnUpdate, (uint) plg.GetSleepOnUpdate(), plg.GetCyclesOnUpdate());
+public string [] Description = null;
+public static IGame Game = BTFS_Game.Game;
+public Plugin() {}
+public void Information () { BTFS_Game.SendMessageToAll(Color.Green, Description); }
+public void Information (IUser user){ BTFS_Game.SendMessageToPlayer(user, Color.Green, Description); }
+public float GetSleepOnUpdate(){ return OnUpdateSleep; }
+public ushort GetCyclesOnUpdate () { return OnUpdateCycles; }
+public string [] GetDescription () { return Description; }
+public void SetSleepOnUpdate (float ms) { OnUpdateSleep = ms; }
+public void SetCyclesOnUpdate (ushort c) { OnUpdateCycles = c; }
+public void SetDescription (params string [] str) { Description = str; }
+public virtual void OnStartup () {}
+public virtual void AfterStartup () {}
+public virtual void OnShutdown () {}
+public virtual void OnUpdate (float ms) {}
+public virtual void OnGameover () {}
+//         public virtual void OnCharacterSpawn () { } // Specific shootout extended implementation
+}
+}
+namespace BTFS
+{
+using SFDGameScriptInterface;
+public abstract class Skill
+{
+protected Callbacks _cb;
+protected string Name { get; set; }
+protected string[] Description { get; set; }
+protected bool[] Conditions { get; set; }
+private Character character;
+private bool _isOwn = false;
+IPlayer _playerOwner;
+public Skill (Callbacks cb) { _cb = cb; }
+public void HandleCharacter(Character character) { this.character = character; }
+public IPlayer GetOwner() {  return _playerOwner; }
+public Character GetCharacter() { return this.character; }
+public PlayerModifiers GetModifiers() { return _playerOwner.GetModifiers(); }
+public bool IsOwn() { return _isOwn; }
+public void SetOwner(IPlayer player) {_playerOwner = player; _isOwn = true; }
+public void SetModifiers(PlayerModifiers mod) { _playerOwner.SetModifiers(mod); }
+public void SetCallbacks (Callbacks cb) { _cb = cb; }
+public abstract void Activate(IPlayer player);
+}
+}
+namespace Empty
+{
+#if standalone
+}
+#endif

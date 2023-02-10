@@ -6,16 +6,14 @@ public partial class ShootoutScriptInterface : GameScriptInterface
 {
     public ShootoutScriptInterface (IGame game) : base(game) {}
 #endif
-
-    Shootout.T_Game t_Game = new Shootout.T_Game("Template Game");
+    BTFS.Shootout_Extended shootout_Extended = new BTFS.Shootout_Extended();
 
     public void OnStartup ()
     {
-        t_Game.Start();
-        if (t_Game.CurrentMode != null) {
-            t_Game.CurrentMode.StartUp(true);
-            t_Game.CurrentMode.RunOnStartupPlugins(t_Game.CurrentMode.GetPlugins());
-            t_Game.CurrentMode.RunOnUpdatePlugins(t_Game.CurrentMode.GetPlugins());
+        if (BTFS.BTFS_Game.CurrentMode != null) {
+            BTFS.BTFS_Game.CurrentMode.StartUp(true);
+            BTFS.BTFS_Game.CurrentMode.RunOnStartupPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
+            BTFS.BTFS_Game.CurrentMode.RunOnUpdatePlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
             Events.UpdateCallback.Start(OnUpdate, 1);
         }
     }
@@ -25,17 +23,17 @@ public partial class ShootoutScriptInterface : GameScriptInterface
     }
 
     public void OnGameover () {
-        if(Game.IsGameOver && t_Game.CurrentMode != null)
-            t_Game.CurrentMode.RunOnGameoverPlugins(t_Game.CurrentMode.GetPlugins());
+        if(Game.IsGameOver && BTFS.BTFS_Game.CurrentMode != null)
+            BTFS.BTFS_Game.CurrentMode.RunOnGameoverPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
     }
 
     public void AfterStartup () {
-        if (t_Game.CurrentMode != null)
-            t_Game.CurrentMode.RunAfterStartupPlugins(t_Game.CurrentMode.GetPlugins());
+        if (BTFS.BTFS_Game.CurrentMode != null)
+            BTFS.BTFS_Game.CurrentMode.RunAfterStartupPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
     }
 
     public void OnShutdown () {
-        if (t_Game.CurrentMode != null)
-            t_Game.CurrentMode.RunOnShutdownPlugins(t_Game.CurrentMode.GetPlugins());
+        if (BTFS.BTFS_Game.CurrentMode != null)
+            BTFS.BTFS_Game.CurrentMode.RunOnShutdownPlugins(BTFS.BTFS_Game.CurrentMode.GetPlugins());
     }
 }

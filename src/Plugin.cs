@@ -1,9 +1,9 @@
-namespace Shootout
+namespace BTFS
 {
     using SFDGameScriptInterface;
     using System;
 
-    public class Plugin
+    public abstract class Plugin
     {
         public string Name { get; set; }
         public bool Enable { get; set; }
@@ -11,14 +11,16 @@ namespace Shootout
         private float OnUpdateSleep = 0;
         private ushort OnUpdateCycles = 1;
 
+        // Events.UpdateCallback.Start(plg.OnUpdate, (uint) plg.GetSleepOnUpdate(), plg.GetCyclesOnUpdate());
+
         public string [] Description = null;
 
-        public static IGame Game;
+        public static IGame Game = BTFS_Game.Game;
 
         public Plugin() {}
 
-        public void Information () { SEE_Game.SendMessageToAll(Color.Green, Description); }
-        public void Information (IUser user){ SEE_Game.SendMessageToPlayer(user, Color.Green, Description); }
+        public void Information () { BTFS_Game.SendMessageToAll(Color.Green, Description); }
+        public void Information (IUser user){ BTFS_Game.SendMessageToPlayer(user, Color.Green, Description); }
         
         public float GetSleepOnUpdate(){ return OnUpdateSleep; }
         public ushort GetCyclesOnUpdate () { return OnUpdateCycles; }

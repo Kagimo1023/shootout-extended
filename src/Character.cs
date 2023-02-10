@@ -1,65 +1,29 @@
-namespace Shootout
+namespace BTFS
 {
     using System;
     using SFDGameScriptInterface;
 
-    public class Character
+    public partial class Character
     {
         Random random = new Random();
 
         IUser User;
         IPlayer Player;
         IPlayer OldPlayer;
-        IProfile Profile;
 
-        protected PlayerModifiers Modifiers;
+        IProfile Profile = new IProfile();
+        PlayerModifiers Modifiers = new PlayerModifiers();
 
-        public static SE_Debug CharacterDebug;
+        // CharacterTeam Team;
 
         #region Character_Data
-        protected string[] Description = null;
-        protected Effect[] Skills = null;
-        protected IProfile[] ProfilePacks = null;
-        protected WeaponItem[] Weapons = null;
-        #endregion
-
-        #region char_profile
-        protected Gender _gender;
-        protected IProfileClothingItem _skin;
-        protected IProfileClothingItem _head;
-        protected IProfileClothingItem _chestover;
-        protected IProfileClothingItem _chestunder;
-        protected IProfileClothingItem _hands;
-        protected IProfileClothingItem _waist;
-        protected IProfileClothingItem _legs;
-        protected IProfileClothingItem _feet;
-        protected IProfileClothingItem _accesory;
+        string[] Description = null;
+        Skill[] Skills = null;
+        // IProfile[] ProfilePacks = null;
+        WeaponItem[] Weapons = null;
         #endregion
 
         #region char_modifiers
-        protected int _max_health = 100;
-        protected int _max_energy = 100;
-        protected float _current_health = 100;
-        protected float _current_energy = 100;
-        protected float _energy_consumption = 1;
-        protected float _explosion_damage_taken = 1;
-        protected float _projectile_damage_taken = 1;
-        protected float _projectile_crit_chance_taken = 1;
-        protected float _fire_damage_taken = 1;
-        protected float _melee_damage_taken = 1;
-        protected float _impact_damage_taken = 1;
-        protected float _projectile_damage_dealt = 1;
-        protected float _projectile_crit_chance_dealt = 1;
-        protected float _melee_damage_dealt = 1;
-        protected float _melee_force = 1;
-        protected int _melee_stun_immunity = 1;
-        protected int _can_burn = 1;
-        protected float _run_speed = 1;
-        protected float _sprint_speed = 1;
-        protected float _energy_recharge = 1;
-        protected float _size_modifier = 1;
-        protected int _infinite_ammo = 1;
-        protected int _item_drop = 1;
         protected float _corpse_health = 100;
         #endregion
 
@@ -67,7 +31,7 @@ namespace Shootout
         string _name = "Unnamed";
         float _time_on_spawn = 0;
         int _uniqueID = -1;
-        int _dead_counter = 0; 
+        int _dead_counter = 0;
         CameraFocusMode _focus_mode;
         bool _on_start = true;
         bool _hide_name = false;
@@ -81,46 +45,55 @@ namespace Shootout
         #endregion
 
         public Character(bool OnStart,
-                          bool HideNickname,
-                          bool HideStatusBar,
+                          bool ShowNickname,
+                          bool ShowStatusBar,
                           string Name,
                           string[] Description,
+                          IProfile Profile,
                           CameraFocusMode Mode,
                           PlayerModifiers Modifiers,
                           WeaponItem[] Weapons,
-                          Effect[] Skills,
+                          Skill[] Skills,
                           int CorpseHealth = 100,
-                          bool DeadOnSpawn = false) {
-            this.Profile = new IProfile();
-            this.Modifiers = new PlayerModifiers();
+                          bool DeadOnSpawn = false)
+        {
             SetOnStartSpawn(OnStart);
+            SetProfile(Profile);
             SetName(Name);
             SetCameraFocus(Mode);
-            SetNametagVisible(HideNickname);
-            SetStatusBarVisible(HideStatusBar);
+            SetNametagVisible(ShowNickname);
+            SetStatusBarVisible(ShowStatusBar);
             SetCharDescription(Description);
             SetPackModifiers(Modifiers);
             SetWeapons(Weapons);
-            SetEffects(Skills);
+            SetSkills(Skills);
             SetDeadOnSpawn(DeadOnSpawn);
             SetCorpseHealth(CorpseHealth);
         }
 
-        public void OnCreateCharacter() {
+        public void OnCreateCharacter()
+        {
             UpdateModifiers();
             UpdateProfile();
+
             HandleCameraFocus();
             HandleNametagVisible();
             HandleStatusBarVisible();
             HandleModifiers();
             HandleProfile();
-            ApplyPassiveEffects(Skills);
+
+            ApplySkills(Skills);
+
             ShowCharDescription(_showCharDescription);
             ShowCharDialogue(_showDialogueOnSpawn);
+
             HandleAIType();
             HandleUser();
+
             GiveWeapons();
+            
             HandleDeadOnSpawn();
+            
             _wasSpawn = true;
         }
 
@@ -133,15 +106,14 @@ namespace Shootout
         public void SetTimeOnSpawn(float time) { _time_on_spawn = time; }
         public void SetWeapons(WeaponItem[] weapons) { Weapons = weapons; }
         public void SetPlayer(IPlayer player) { Player = player; }
-        public void SetEffects(Effect[] effects) { Skills = effects; }
-        public void AddPassiveEffects(params Effect[] effects) { Skills = effects; }
+        public void SetSkills(Skill[] skills) { Skills = skills; }
         public void SetOnStartShowDescription(bool show) { _showCharDescription = show; }
         public void SetOnStartSpawn(bool spawn) { _on_start = spawn; }
         public void CreateCharDialogue(Color color, float duration) { GameScriptInterface.Game.CreateDialogue(GetName(), color, GetPlayer(), "", duration, false); }
         public void SetAIType(PredefinedAIType predefinedAIType) { _predefinedAIType = predefinedAIType; }
         public void SetUniqueID(int id) { _uniqueID = id; }
         public void SetName(string name) { _name = name; }
-        public void SetOldPlayer(IPlayer player) { OldPlayer = player; } 
+        public void SetOldPlayer(IPlayer player) { OldPlayer = player; }
         public void SetDeadOnSpawn(bool dead_spawn) { _dead_spawn = dead_spawn; }
         public void SetCharDescription(params string[] char_description) { this.Description = char_description; }
         public void SetOnStartShowDialogue(bool show) { _showDialogueOnSpawn = show; }
@@ -155,7 +127,7 @@ namespace Shootout
 
         public bool GetDeadOnSpawn() { return _dead_spawn; }
         public bool CharacterIsDead() { return GetPlayer().IsDead; }
-        public bool GetOnStartShowDialogue() { return _showDialogueOnSpawn; } 
+        public bool GetOnStartShowDialogue() { return _showDialogueOnSpawn; }
         public bool GetOnStartSpawn() { return _on_start; }
         public bool WasSpawned() { return _wasSpawn; }
         public bool GetOnStartShowDescription() { return _showCharDescription; }
@@ -163,31 +135,31 @@ namespace Shootout
         public string GetName() { return _name; }
 
         public float GetTimeOnSpawn() { return _time_on_spawn; }
-    
+
         public int GetDeadCount() { return this._dead_counter; }
         public int GetUniqueID() { return _uniqueID; }
-        
+
         public PredefinedAIType GetAIType() { return _predefinedAIType; }
         public IPlayer GetOldPlayer() { return this.OldPlayer; }
         public IPlayer GetPlayer() { return Player; }
-        public PlayerModifiers GetModifiers() { return this.Modifiers;}
+        public PlayerModifiers GetModifiers() { return this.Modifiers; }
         public IUser GetUser() { return this.User; }
-
-        public Effect[] GetEffects() { return Skills; }
+        public Skill[] GetSkills() { return Skills; }
 
         //Base character constructor
-        public Character() {
-            CharacterDebug = new SE_Debug("Character Debug log (" + _name + ")");
+        public Character()
+        {
             this.Profile = new IProfile();
             this.Modifiers = new PlayerModifiers();
         }
 
         //Using for creating player base on Character class
-        public IPlayer CreateCharacter(Vector2 position) {
+        public IPlayer CreateCharacter(Vector2 position)
+        {
             SetPlayer(GameScriptInterface.Game.CreatePlayer(position));
             SetUniqueID(GetPlayer().UniqueID);
             OnCreateCharacter();
-            return this.Player;
+            return Player;
         }
 
         public void HandleModifiers()
@@ -196,43 +168,53 @@ namespace Shootout
             Player.SetCorpseHealth(_corpse_health);
         }
 
-        public void HandleDeadOnSpawn() {
+        public void HandleDeadOnSpawn()
+        {
             if (_dead_spawn == true)
                 Player.Kill();
         }
 
-        public void HandleUser() {
+        public void HandleUser()
+        {
             Player.SetUser(User);
 
-            if (SEE_Game.BotsSupport && User.IsBot) {
+            if (BTFS_Game.BotsSupport && User.IsBot)
+            {
                 PredefinedAIType predefinedAIType = User.BotPredefinedAIType;
                 Player.SetBotBehavior(new BotBehavior(true, predefinedAIType));
             }
         }
 
         //Send to user description about character
-        public void ShowCharDescription(bool show) {
+        public void ShowCharDescription(bool show)
+        {
             if (show && Description == null && User != null)
-                SEE_Game.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
+                BTFS_Game.SendMessageToPlayer(User, Color.Red, "YOU ARE " + GetName().ToUpper(), "Character has not description");
 
             if (show && Description != null && User != null)
             {
-                SEE_Game.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
-                SEE_Game.SendMessageToPlayer(User, Color.Green, Description);
+                BTFS_Game.SendMessageToPlayer(User, Color.Green, "YOU ARE " + GetName().ToUpper());
+                BTFS_Game.SendMessageToPlayer(User, Color.Green, Description);
             }
         }
 
-        public void ShowCharDialogue(bool show) {
+        public void ShowCharDialogue(bool show)
+        {
             if (show == true)
                 CreateCharDialogue(Color.Red, 2000);
-        } 
-
-        public void ApplyPassiveEffects(Effect[] effects) {
-            foreach (Effect e in effects)
-                Player.Apply(e);
         }
 
-        public void GiveWeapons() {
+        public void ApplySkills(Skill[] skills)
+        {
+            foreach (Skill s in skills)
+            {
+                s.SetCallbacks(BTFS_Game.GetCallbacks());
+                Player.Apply(s);
+            }
+        }
+
+        public void GiveWeapons()
+        {
             if (Weapons == null)
                 return;
 
@@ -240,31 +222,10 @@ namespace Shootout
                 Player.GiveWeaponItem(weapon);
         }
 
-        public void GiveWeapons(WeaponItem[] weapons) {
-            foreach (WeaponItem weapon in weapons) 
+        public void GiveWeapons(WeaponItem[] weapons)
+        {
+            foreach (WeaponItem weapon in weapons)
                 Player.GiveWeaponItem(weapon);
-        }
-
-        public void SetProfileItems(Gender gender,
-                                     IProfileClothingItem skin,
-                                     IProfileClothingItem head,
-                                     IProfileClothingItem chestover,
-                                     IProfileClothingItem chestunder,
-                                     IProfileClothingItem hands,
-                                     IProfileClothingItem waist,
-                                     IProfileClothingItem legs,
-                                     IProfileClothingItem feet,
-                                     IProfileClothingItem accesory) {
-            _gender = gender;
-            _skin = skin;
-            _head = head;
-            _chestover = chestover;
-            _chestunder = chestunder;
-            _hands = hands;
-            _waist = waist;
-            _legs = legs;
-            _feet = feet;
-            _accesory = accesory;
         }
 
         public IProfile CreateProfile(Gender gender,
@@ -276,8 +237,10 @@ namespace Shootout
                                        IProfileClothingItem waist,
                                        IProfileClothingItem legs,
                                        IProfileClothingItem feet,
-                                       IProfileClothingItem accesory) {
-            var profile = new IProfile() {
+                                       IProfileClothingItem accesory)
+        {
+            var profile = new IProfile()
+            {
                 Name = _name,
                 Gender = gender,
                 Skin = skin,
@@ -294,45 +257,47 @@ namespace Shootout
             return profile;
         }
 
-        public void UpdateProfile() {
-            Profile = CreateProfile(_gender,
-                                      _skin,
-                                      _head,
-                                      _chestover,
-                                      _chestunder,
-                                      _hands,
-                                      _waist,
-                                      _legs,
-                                      _feet,
-                                      _accesory);
+        public void UpdateProfile()
+        {
+            Profile = CreateProfile(Profile.Gender,
+                                      Profile.Skin,
+                                      Profile.Head,
+                                      Profile.ChestOver,
+                                      Profile.ChestUnder,
+                                      Profile.Hands,
+                                      Profile.Waist,
+                                      Profile.Legs,
+                                      Profile.Feet,
+                                      Profile.Accesory);
         }
 
-        public void UpdateModifiers() {
-            Modifiers = CreateModifiers(_max_health,
-                                          _max_energy,
-                                          _current_health,
-                                          _current_energy,
-                                          _energy_consumption,
-                                          _explosion_damage_taken,
-                                          _projectile_damage_taken,
-                                          _projectile_crit_chance_taken,
-                                          _fire_damage_taken,
-                                          _melee_damage_taken,
-                                          _impact_damage_taken,
-                                          _projectile_damage_dealt,
-                                          _projectile_crit_chance_dealt,
-                                          _melee_damage_dealt,
-                                          _melee_force,
-                                          _melee_stun_immunity,
-                                          _can_burn,
-                                          _run_speed,
-                                          _sprint_speed,
-                                          _energy_recharge,
-                                          _size_modifier,
-                                          _infinite_ammo,
-                                          _item_drop);
+        public void UpdateModifiers()
+        {
+            Modifiers = CreateModifiers(Modifiers.MaxHealth,
+                                          Modifiers.MaxEnergy,
+                                          Modifiers.CurrentHealth,
+                                          Modifiers.CurrentEnergy,
+                                          Modifiers.EnergyConsumptionModifier,
+                                          Modifiers.ExplosionDamageTakenModifier,
+                                          Modifiers.ProjectileDamageTakenModifier,
+                                          Modifiers.ProjectileCritChanceTakenModifier,
+                                          Modifiers.FireDamageTakenModifier,
+                                          Modifiers.MeleeDamageTakenModifier,
+                                          Modifiers.ImpactDamageTakenModifier,
+                                          Modifiers.ProjectileDamageDealtModifier,
+                                          Modifiers.ProjectileCritChanceDealtModifier,
+                                          Modifiers.MeleeDamageDealtModifier,
+                                          Modifiers.MeleeForceModifier,
+                                          Modifiers.MeleeStunImmunity,
+                                          Modifiers.CanBurn,
+                                          Modifiers.RunSpeedModifier,
+                                          Modifiers.SprintSpeedModifier,
+                                          Modifiers.EnergyRechargeModifier,
+                                          Modifiers.SizeModifier,
+                                          Modifiers.InfiniteAmmo,
+                                          Modifiers.ItemDropMode);
         }
-        
+
         public PlayerModifiers CreateModifiers(int max_health,
                                                 int max_energy,
                                                 float current_health,
@@ -355,8 +320,10 @@ namespace Shootout
                                                 float energy_recharge,
                                                 float size_modifier,
                                                 int infinite_ammo,
-                                                int item_drop) {
-            var modifiers = new PlayerModifiers() {
+                                                int item_drop)
+        {
+            var modifiers = new PlayerModifiers()
+            {
                 MaxHealth = max_health,
                 MaxEnergy = max_energy,
                 CurrentHealth = current_health,
@@ -383,54 +350,6 @@ namespace Shootout
             };
 
             return modifiers;
-        }
-
-        public void SetModifiers(int max_health,
-                                  int max_energy,
-                                  float current_health,
-                                  float current_energy,
-                                  float energy_consumption,
-                                  float explosion_damage_taken,
-                                  float projectile_damage_taken,
-                                  float projectile_crit_chance_taken,
-                                  float fire_damage_taken,
-                                  float melee_damage_taken,
-                                  float impact_damage_taken,
-                                  float projectile_damage_dealt,
-                                  float projectile_crit_chance_dealt,
-                                  float melee_damage_dealt,
-                                  float melee_force,
-                                  int melee_stun_immunity,
-                                  int can_burn,
-                                  float run_speed,
-                                  float sprint_speed,
-                                  float energy_recharge,
-                                  float size_modifier,
-                                  int infinite_ammo,
-                                  int item_drop) {
-            _max_health = max_health;
-            _max_energy = max_energy;
-            _current_health = current_health;
-            _current_energy = current_energy;
-            _energy_consumption = energy_consumption;
-            _explosion_damage_taken = explosion_damage_taken;
-            _projectile_damage_taken = projectile_damage_taken;
-            _projectile_crit_chance_taken = projectile_crit_chance_taken;
-            _fire_damage_taken = fire_damage_taken;
-            _melee_damage_taken = melee_damage_taken;
-            _impact_damage_taken = impact_damage_taken;
-            _projectile_damage_dealt = projectile_damage_dealt;
-            _projectile_crit_chance_dealt = projectile_crit_chance_dealt;
-            _melee_damage_dealt = melee_damage_dealt;
-            _melee_force = melee_force;
-            _melee_stun_immunity = melee_stun_immunity;
-            _can_burn = can_burn;
-            _run_speed = run_speed;
-            _sprint_speed = sprint_speed;
-            _energy_recharge = energy_recharge;
-            _size_modifier = size_modifier;
-            _infinite_ammo = infinite_ammo;
-            _item_drop = item_drop;
         }
     }
 }
